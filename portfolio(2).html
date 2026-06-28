@@ -1,0 +1,1330 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kauã Lucas — Editor de Vídeo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,700;1,300;1,400&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+:root{
+  --black:#0A0A0A;
+  --off:#111111;
+  --card:#161616;
+  --purple:#8B5CF6;
+  --purple2:#6D28D9;
+  --lime:#C8F135;
+  --white:#F5F5F0;
+  --grey:#888;
+  --grey2:#444;
+  --border:rgba(255,255,255,0.07);
+}
+body{font-family:'DM Sans',sans-serif;background:var(--black);color:var(--white);overflow-x:hidden}
+
+/* ── CURSOR GLOW ── */
+.cursor-glow{position:fixed;width:400px;height:400px;border-radius:50%;background:radial-gradient(circle,rgba(139,92,246,0.08) 0%,transparent 70%);pointer-events:none;transform:translate(-50%,-50%);transition:all 0.15s ease;z-index:0}
+
+/* ── NAV ── */
+nav{position:fixed;top:0;left:0;right:0;z-index:200;padding:1.25rem 3rem;display:flex;justify-content:space-between;align-items:center;mix-blend-mode:difference}
+.nav-logo{font-family:'Bebas Neue',sans-serif;font-size:1.4rem;letter-spacing:3px;color:#fff}
+.nav-links{display:flex;gap:2.5rem;list-style:none}
+.nav-links a{color:rgba(255,255,255,0.6);text-decoration:none;font-size:0.78rem;letter-spacing:2px;text-transform:uppercase;font-weight:500;transition:color 0.2s}
+.nav-links a:hover{color:#fff}
+
+/* ── HERO ── */
+#hero{min-height:100vh;display:grid;place-items:center;position:relative;overflow:hidden;background:var(--black)}
+.hero-bg-video{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:0;opacity:0.35;filter:grayscale(15%)}
+.hero-bg-video-overlay{position:absolute;top:0;left:0;width:100%;height:100%;z-index:1;background:linear-gradient(180deg,rgba(10,10,10,0.55) 0%,rgba(10,10,10,0.35) 40%,rgba(10,10,10,0.85) 100%)}
+.hero-sound-toggle{position:absolute;bottom:2.5rem;right:3rem;z-index:3;display:flex;align-items:center;gap:0.6rem;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);backdrop-filter:blur(6px);padding:0.6rem 1rem;border-radius:30px;cursor:pointer;transition:border-color 0.2s,background 0.2s;font-family:'Space Mono',monospace;font-size:0.68rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--white)}
+.hero-sound-toggle:hover{border-color:var(--lime);background:rgba(255,255,255,0.1)}
+.hero-sound-toggle svg{width:16px;height:16px;fill:var(--lime)}
+@media(max-width:768px){.hero-sound-toggle{right:1.25rem;bottom:1.25rem;padding:0.5rem 0.8rem}}
+.hero-bg-text{position:absolute;font-family:'Bebas Neue',sans-serif;font-size:clamp(120px,22vw,280px);color:rgba(255,255,255,0.025);letter-spacing:-5px;user-select:none;white-space:nowrap;top:50%;transform:translateY(-50%);pointer-events:none}
+.hero-inner{position:relative;z-index:2;text-align:center;padding:2rem}
+.hero-eyebrow{display:inline-flex;align-items:center;gap:0.5rem;font-family:'Space Mono',monospace;font-size:0.72rem;letter-spacing:3px;text-transform:uppercase;color:var(--lime);margin-bottom:2rem}
+.hero-eyebrow::before,.hero-eyebrow::after{content:'';display:block;width:30px;height:1px;background:var(--lime)}
+.hero-name{font-family:'Bebas Neue',sans-serif;font-size:clamp(72px,14vw,180px);line-height:0.9;letter-spacing:-2px;color:var(--white);display:block}
+.hero-name .outline{-webkit-text-stroke:1.5px var(--white);color:transparent}
+.hero-role{font-family:'DM Sans',sans-serif;font-size:clamp(1rem,2.5vw,1.35rem);color:var(--grey);font-style:italic;margin-top:1.5rem;letter-spacing:1px}
+.hero-scroll{position:absolute;bottom:2.5rem;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:0.5rem;font-family:'Space Mono',monospace;font-size:0.65rem;letter-spacing:2px;color:var(--grey);animation:bounce 2s infinite}
+.hero-scroll-line{width:1px;height:50px;background:linear-gradient(to bottom,var(--grey),transparent)}
+@keyframes bounce{0%,100%{transform:translateX(-50%) translateY(0)}50%{transform:translateX(-50%) translateY(8px)}}
+.hero-stats{display:flex;gap:3rem;justify-content:center;margin-top:3.5rem;flex-wrap:wrap}
+.hero-stat .num{font-family:'Bebas Neue',sans-serif;font-size:3rem;color:var(--lime);line-height:1}
+.hero-stat .lbl{font-size:0.72rem;letter-spacing:2px;text-transform:uppercase;color:var(--grey);margin-top:0.25rem}
+.hero-btns{display:flex;gap:1rem;justify-content:center;margin-top:2.5rem;flex-wrap:wrap}
+.btn-solid{background:var(--lime);color:var(--black);padding:0.9rem 2.2rem;border-radius:2px;font-weight:700;font-size:0.85rem;letter-spacing:1px;text-transform:uppercase;text-decoration:none;transition:opacity 0.2s,transform 0.15s;display:inline-flex;align-items:center;gap:0.5rem}
+.btn-solid:hover{opacity:0.88;transform:translateY(-2px)}
+.btn-line{background:transparent;color:var(--white);border:1px solid rgba(255,255,255,0.3);padding:0.9rem 2.2rem;border-radius:2px;font-weight:500;font-size:0.85rem;letter-spacing:1px;text-transform:uppercase;text-decoration:none;transition:border-color 0.2s,transform 0.15s;display:inline-flex;align-items:center;gap:0.5rem}
+.btn-line:hover{border-color:var(--white);transform:translateY(-2px)}
+
+/* ── MARQUEE ── */
+.marquee-section{padding:1.5rem 0;background:var(--lime);overflow:hidden;position:relative;z-index:2}
+.marquee-track{display:flex;gap:0;width:max-content;animation:marqueeAnim 18s linear infinite}
+.marquee-item{font-family:'Bebas Neue',sans-serif;font-size:1.5rem;letter-spacing:3px;color:var(--black);padding:0 2rem;white-space:nowrap}
+.marquee-dot{color:var(--purple2);padding:0 0.5rem}
+@keyframes marqueeAnim{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+
+/* ── SOBRE ── */
+#sobre{padding:8rem 3rem;background:var(--black);position:relative;overflow:hidden}
+.sobre-grid{max-width:1200px;margin:0 auto;display:grid;grid-template-columns:1fr 1fr;gap:6rem;align-items:center}
+.sobre-label{font-family:'Space Mono',monospace;font-size:0.7rem;letter-spacing:3px;text-transform:uppercase;color:var(--purple);margin-bottom:1.5rem;display:flex;align-items:center;gap:0.75rem}
+.sobre-label::after{content:'';flex:1;height:1px;background:var(--grey2)}
+.sobre-heading{font-family:'Bebas Neue',sans-serif;font-size:clamp(52px,7vw,90px);line-height:0.95;letter-spacing:-1px;margin-bottom:2rem}
+.sobre-heading .hl{color:var(--lime)}
+.sobre-body p{font-size:1rem;color:rgba(245,245,240,0.7);line-height:1.85;margin-bottom:1rem}
+.sobre-video{position:relative}
+
+/* ── FOTO DE PERFIL (substitui o vídeo de apresentação) ──
+   Moldura sutil + overlay de gradiente que usa as cores do site
+   (preto/lime) por trás e nas bordas da imagem, fazendo a foto se
+   integrar à identidade visual em vez de parecer um elemento colado. */
+.sobre-photo-wrap{position:relative;padding:14px;border-radius:6px;background:linear-gradient(155deg,rgba(200,241,53,0.10),rgba(139,92,246,0.06) 45%,rgba(0,0,0,0) 70%);border:1px solid var(--border)}
+.sobre-photo-frame{position:relative;border-radius:4px;overflow:hidden;aspect-ratio:4/5;background:var(--card)}
+.sobre-photo-frame img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:contrast(1.05) saturate(0.92);transition:transform 0.6s cubic-bezier(.2,.8,.2,1)}
+.sobre-photo-wrap:hover .sobre-photo-frame img{transform:scale(1.035)}
+/* Vinheta + leve tonalidade lime nas sombras pra casar com a paleta,
+   sem cobrir a foto de verdade (overlay bem discreto). */
+.sobre-photo-frame::before{content:'';position:absolute;inset:0;z-index:1;background:
+    linear-gradient(190deg,rgba(200,241,53,0.10) 0%,transparent 35%),
+    linear-gradient(0deg,rgba(10,10,10,0.55) 0%,transparent 38%,transparent 70%,rgba(10,10,10,0.25) 100%);
+  pointer-events:none}
+/* Borda fininha por dentro do frame, no tom lime, reforçando moldura */
+.sobre-photo-frame::after{content:'';position:absolute;inset:0;z-index:2;border:1px solid rgba(200,241,53,0.18);border-radius:4px;pointer-events:none}
+.sobre-photo-corner{position:absolute;width:22px;height:22px;border-color:var(--lime);z-index:3;opacity:0.85}
+.sobre-photo-corner.tl{top:-1px;left:-1px;border-top:2px solid;border-left:2px solid}
+.sobre-photo-corner.br{bottom:-1px;right:-1px;border-bottom:2px solid;border-right:2px solid}
+.sobre-video-caption{font-family:'Space Mono',monospace;font-size:0.68rem;letter-spacing:2px;color:var(--grey);margin-top:0.75rem}
+@media(max-width:560px){.sobre-photo-frame{aspect-ratio:1/1}}
+.sobre-tags{display:flex;flex-wrap:wrap;gap:0.5rem;margin-top:1.75rem}
+.tag{background:rgba(139,92,246,0.12);border:1px solid rgba(139,92,246,0.3);color:var(--purple);font-size:0.75rem;padding:0.35rem 0.9rem;border-radius:2px;letter-spacing:1px;font-family:'Space Mono',monospace}
+
+/* ── CARROSSEL INFINITO ── */
+#carrossel{padding:5rem 0;background:var(--off);overflow:hidden;position:relative}
+.section-row{max-width:1200px;margin:0 auto 3rem;padding:0 3rem;display:flex;align-items:flex-end;justify-content:space-between;gap:1rem}
+.section-num{font-family:'Bebas Neue',sans-serif;font-size:5rem;color:rgba(255,255,255,0.04);line-height:1;margin-right:-1rem}
+.section-head{flex:1}
+.section-label2{font-family:'Space Mono',monospace;font-size:0.7rem;letter-spacing:3px;text-transform:uppercase;color:var(--lime);margin-bottom:0.5rem}
+.section-title2{font-family:'Bebas Neue',sans-serif;font-size:clamp(36px,5vw,60px);line-height:1;letter-spacing:-0.5px}
+.inf-outer{overflow:hidden;position:relative}
+.inf-outer::before,.inf-outer::after{content:'';position:absolute;top:0;bottom:0;width:150px;z-index:2;pointer-events:none}
+.inf-outer::before{left:0;background:linear-gradient(to right,var(--off),transparent)}
+.inf-outer::after{right:0;background:linear-gradient(to left,var(--off),transparent)}
+.inf-track{display:flex;gap:1rem;width:max-content;animation:infScroll 45s linear infinite}
+.inf-track:hover{animation-play-state:paused}
+@keyframes infScroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+.inf-item{width:280px;flex-shrink:0}
+.inf-video{position:relative;width:100%;padding-top:56.25%;border-radius:4px;overflow:hidden;background:#000;box-shadow:0 8px 24px rgba(0,0,0,0.35)}
+.inf-video iframe,.inf-video video{position:absolute;top:0;left:0;width:100%;height:100%;border:none;pointer-events:none;object-fit:cover}
+/* Mesma "capinha" do NICHOS QUE ATENDO (.nv img / .nv-over): vídeo com
+   opacidade reduzida por padrão + gradiente escuro por cima, clareando
+   no hover. Aqui o gradiente fica sempre visível (sem opacity:0 do hover),
+   já que o carrossel é só visual passivo, sem clique/modal. */
+.inf-video video{opacity:0.55;transition:opacity 0.4s,transform 0.45s cubic-bezier(.2,.8,.2,1)}
+.inf-item:hover .inf-video video{opacity:1;transform:scale(1.05)}
+.inf-video::after{content:'';position:absolute;inset:0;z-index:1;background:linear-gradient(180deg,rgba(0,0,0,0.05) 0%,rgba(0,0,0,0.6) 100%);transition:opacity 0.25s}
+.inf-clone-thumb{position:absolute;top:0;left:0;width:100%;height:100%;background-size:cover;background-position:center;display:flex;align-items:center;justify-content:center}
+.inf-clone-overlay{position:absolute;inset:0;background:rgba(0,0,0,0.35)}
+
+/* ── CARROSSEL DE DEPOIMENTOS (mesmo padrão do reel de vídeos) ──
+   Reaproveita .inf-outer/.inf-track/infScroll para o movimento infinito;
+   troca apenas o conteúdo do item (vídeo → card de avaliação). */
+#depoimentos{padding:5rem 0;background:var(--off);overflow:hidden;position:relative}
+.dep-item{width:320px;flex-shrink:0}
+.dep-card{height:100%;background:var(--card);border:1px solid var(--border);border-radius:6px;padding:1.75rem;display:flex;flex-direction:column;gap:1rem;transition:border-color 0.2s,transform 0.2s}
+.dep-item:hover .dep-card{border-color:rgba(200,241,53,0.25);transform:translateY(-4px)}
+.dep-stars{display:flex;gap:0.2rem}
+.dep-stars svg{width:14px;height:14px;fill:var(--lime)}
+.dep-text{font-size:0.88rem;line-height:1.7;color:rgba(245,245,240,0.82);flex:1}
+.dep-foot{display:flex;align-items:center;gap:0.75rem;margin-top:auto}
+.dep-avatar{width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,var(--purple),var(--lime));display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue',sans-serif;font-size:1rem;color:var(--black);flex-shrink:0}
+.dep-who{display:flex;flex-direction:column;gap:0.1rem;min-width:0}
+.dep-name{font-size:0.82rem;font-weight:600;color:var(--white)}
+.dep-gig{font-family:'Space Mono',monospace;font-size:0.65rem;letter-spacing:1px;color:var(--grey);text-transform:uppercase}
+.dep-fiverr-badge{margin-left:auto;flex-shrink:0;font-family:'Space Mono',monospace;font-size:0.6rem;letter-spacing:1px;color:var(--lime);opacity:0.7;text-transform:uppercase;white-space:nowrap}
+.dep-rating-summary{display:flex;align-items:center;gap:0.6rem;margin-top:0.5rem}
+.dep-rating-num{font-family:'Bebas Neue',sans-serif;font-size:2.2rem;color:var(--lime);line-height:1}
+.dep-rating-meta{display:flex;flex-direction:column;gap:0.15rem}
+.dep-rating-meta .dep-stars svg{width:12px;height:12px}
+.dep-rating-meta-count{font-size:0.72rem;color:var(--grey)}
+@media(max-width:580px){.dep-item{width:260px}}
+
+/* ── NICHOS (grid uniforme) ── */
+#nichos{padding:8rem 3rem;background:var(--black)}
+.nichos-wrap{max-width:1200px;margin:0 auto}
+
+/* Grid simples e uniforme: todas as células do mesmo tamanho.
+   auto-fill cria quantas colunas couberem (mínimo 260px cada) — então
+   adicionar ou remover .nv no HTML só reflui o grid, nunca deixa buraco. */
+.nv-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(260px,1fr));
+  gap:1rem;
+  margin-top:3rem;
+}
+.nv-grid .nv{aspect-ratio:16/10}
+
+/* Wrapper que faz o corte de "Ver mais": ao colapsar, corta por uma
+   altura calculada em JS a partir da altura real de UMA linha do grid
+   (medida no card + gap), então o corte sempre cai exatamente na borda
+   de uma linha — nunca no meio de um card. */
+.nv-grid-wrap{position:relative;overflow:hidden;transition:max-height 0.4s ease}
+.nv-grid-wrap::after{content:'';position:absolute;left:0;right:0;bottom:0;height:90px;background:linear-gradient(to bottom,transparent,var(--black));opacity:0;transition:opacity 0.3s;pointer-events:none}
+.nv-grid-wrap.is-collapsed::after{opacity:1}
+
+.nv{position:relative;border-radius:6px;overflow:hidden;cursor:pointer;background:#0a0a0a}
+
+/* Fundo decorativo "vivo" por trás da thumbnail — sempre visível, com leve
+   movimento, simulando profundidade de vídeo mesmo antes do link real. */
+.nv-bg{position:absolute;inset:0;background:
+    radial-gradient(circle at 25% 25%,rgba(200,241,53,0.16),transparent 50%),
+    radial-gradient(circle at 75% 75%,rgba(139,92,246,0.18),transparent 50%),
+    linear-gradient(135deg,#1c1c1c,#070707);
+  background-size:200% 200%;
+  animation:nvBgShift 9s ease-in-out infinite}
+@keyframes nvBgShift{0%,100%{background-position:0% 0%}50%{background-position:100% 100%}}
+.nv-fallback-icon{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:1.7rem;opacity:0.35;filter:grayscale(1) brightness(1.7)}
+
+/* A thumbnail real fica com leve transparência por padrão, deixando o
+   fundo decorativo (ou o frame do próprio vídeo, levemente) aparecer
+   por trás — no hover vai a 100% de opacidade. */
+.nv img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity 0.4s,transform 0.45s cubic-bezier(.2,.8,.2,1)}
+.nv img[src]{opacity:0.55}
+.nv:hover img[src]{opacity:1;transform:scale(1.05)}
+
+.nv-over{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0.05) 0%,rgba(0,0,0,0.6) 100%);display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity 0.25s}
+.nv:hover .nv-over{opacity:1}
+.nv-play{width:44px;height:44px;border-radius:50%;background:var(--lime);display:flex;align-items:center;justify-content:center;transform:scale(0.8);transition:transform 0.25s}
+.nv:hover .nv-play{transform:scale(1)}
+.nv-play svg{fill:var(--black);width:16px;height:16px;margin-left:2px}
+
+.nv-toggle-row{display:flex;justify-content:center;margin-top:2.5rem}
+.nv-toggle-btn{display:inline-flex;align-items:center;gap:0.6rem;background:transparent;border:1px solid var(--border);color:var(--white);font-family:'Space Mono',monospace;font-size:0.72rem;letter-spacing:2px;text-transform:uppercase;padding:0.8rem 1.8rem;border-radius:30px;cursor:pointer;transition:border-color 0.2s,background 0.2s}
+.nv-toggle-btn:hover{border-color:var(--lime);background:rgba(200,241,53,0.06)}
+.nv-toggle-btn svg{width:13px;height:13px;fill:none;stroke:var(--lime);stroke-width:2;transition:transform 0.3s}
+.nv-toggle-btn.open svg{transform:rotate(180deg)}
+
+@media(max-width:900px){
+  .nv-grid{grid-template-columns:repeat(2,1fr)}
+}
+@media(max-width:560px){
+  .nv-grid{grid-template-columns:1fr}
+}
+
+
+/* ── PACOTES ── */
+#pacotes{padding:8rem 3rem;background:var(--black)}
+.pacotes-wrap{max-width:1200px;margin:0 auto}
+.pacotes-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border);border:1px solid var(--border);border-radius:4px;overflow:hidden;margin-top:3.5rem}
+.pac{background:var(--black);padding:2.5rem 2rem;display:flex;flex-direction:column;transition:background 0.2s}
+.pac:hover{background:var(--card)}
+.pac.hot{background:var(--card);position:relative}
+.pac.hot::before{content:'MAIS POPULAR';position:absolute;top:0;left:2rem;background:var(--lime);color:var(--black);font-family:'Space Mono',monospace;font-size:0.65rem;padding:0.3rem 0.8rem;letter-spacing:2px}
+.pac-tier{font-family:'Space Mono',monospace;font-size:0.68rem;letter-spacing:3px;text-transform:uppercase;color:var(--grey);margin-bottom:0.75rem}
+.pac-name{font-family:'Bebas Neue',sans-serif;font-size:2rem;letter-spacing:1px;margin-bottom:0.5rem}
+.pac-price{font-family:'Bebas Neue',sans-serif;font-size:3.5rem;color:var(--lime);line-height:1;margin-bottom:0.25rem}
+.pac-price-sub{font-size:0.8rem;color:var(--grey);margin-bottom:1.5rem}
+.pac-divider{height:1px;background:var(--border);margin-bottom:1.5rem}
+.pac-features{list-style:none;display:flex;flex-direction:column;gap:0.7rem;flex:1;margin-bottom:2rem}
+.pac-features li{font-size:0.85rem;color:rgba(245,245,240,0.75);display:flex;align-items:center;gap:0.6rem}
+.pac-features li::before{content:'✓';color:var(--lime);font-size:0.8rem;flex-shrink:0}
+.pac-features li.off{opacity:0.3;text-decoration:line-through}
+.pac-features li.off::before{content:'—';color:var(--grey)}
+.pac-btn{display:flex;align-items:center;justify-content:center;gap:0.5rem;padding:0.9rem;background:transparent;border:1px solid var(--border);color:var(--white);font-size:0.82rem;letter-spacing:1px;text-transform:uppercase;text-decoration:none;border-radius:2px;transition:all 0.2s;font-weight:600;margin-top:auto}
+.pac-btn:hover{background:var(--lime);color:var(--black);border-color:var(--lime)}
+.pac.hot .pac-btn{background:var(--purple);border-color:var(--purple)}
+.pac.hot .pac-btn:hover{background:var(--lime);color:var(--black);border-color:var(--lime)}
+.pacotes-cta{text-align:center;margin-top:3rem}
+.pacotes-cta p{color:var(--grey);font-size:0.9rem;margin-bottom:1.25rem}
+
+/* ── CONTATO ── */
+#contato{padding:8rem 3rem;background:var(--off);position:relative;overflow:hidden}
+.contato-bg{position:absolute;font-family:'Bebas Neue',sans-serif;font-size:clamp(80px,16vw,200px);color:rgba(255,255,255,0.025);bottom:0;left:0;right:0;text-align:center;pointer-events:none;letter-spacing:-3px;line-height:1}
+.contato-wrap{max-width:900px;margin:0 auto;text-align:center;position:relative;z-index:2}
+.contato-heading{font-family:'Bebas Neue',sans-serif;font-size:clamp(52px,9vw,110px);line-height:0.95;margin:2rem 0 3rem}
+.contato-heading .hl{color:var(--lime)}
+.contato-cards{display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;margin-bottom:3rem}
+.cc{background:var(--card);border:1px solid var(--border);border-radius:3px;padding:1.5rem 2rem;text-decoration:none;display:flex;flex-direction:column;align-items:center;gap:0.6rem;min-width:160px;transition:border-color 0.2s,transform 0.2s}
+.cc:hover{border-color:rgba(200,241,53,0.4);transform:translateY(-4px)}
+.cc .ci{font-size:1.75rem}
+.cc .ci svg{width:1.75rem;height:1.75rem;fill:var(--lime)}
+.cc .cl{font-family:'Space Mono',monospace;font-size:0.65rem;letter-spacing:2px;text-transform:uppercase;color:var(--grey)}
+.cc .cv{font-size:0.85rem;font-weight:600;color:var(--white)}
+
+/* ── MODAL ── */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:500;align-items:center;justify-content:center;padding:2rem}
+.modal-overlay.on{display:flex}
+.modal-box{position:relative;width:100%;max-width:920px;background:var(--card);border-radius:4px;overflow:hidden;border:1px solid var(--border)}
+.modal-close{position:absolute;top:1rem;right:1rem;z-index:10;width:38px;height:38px;border-radius:50%;background:rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:1.1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.2s}
+.modal-close:hover{background:var(--purple)}
+.modal-video{width:100%;padding-top:56.25%;position:relative}
+.modal-video iframe{position:absolute;inset:0;width:100%;height:100%;border:none}
+
+/* ── FOOTER ── */
+footer{background:var(--black);border-top:1px solid var(--border);padding:3rem;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:2rem}
+.ft-logo{font-family:'Bebas Neue',sans-serif;font-size:1.6rem;letter-spacing:3px}
+.ft-logo span{color:var(--lime)}
+.ft-copy{font-family:'Space Mono',monospace;font-size:0.65rem;color:var(--grey);letter-spacing:1px;text-align:center}
+.ft-made{font-family:'Space Mono',monospace;font-size:0.65rem;color:var(--grey);letter-spacing:1px;text-align:right}
+.ft-made span{color:var(--lime)}
+
+/* ── FADE-IN ── */
+.fi{opacity:0;transform:translateY(28px);transition:opacity 0.65s ease,transform 0.65s ease}
+.fi.vis{opacity:1;transform:translateY(0)}
+.processo-fi{opacity:0;transform:translateY(28px);transition:opacity 0.6s cubic-bezier(.23,1,.32,1),transform 0.6s cubic-bezier(.23,1,.32,1)}
+.processo-fi.vis{opacity:1;transform:translateY(0)}
+
+/* ── PROCESSO DA EDIÇÃO ── */
+#processo{padding:8rem 3rem;background:var(--black);position:relative;overflow:hidden}
+.processo-bg{position:absolute;right:-3%;top:50%;transform:translateY(-50%);font-family:'Bebas Neue',sans-serif;font-size:clamp(100px,18vw,220px);color:rgba(255,255,255,0.025);letter-spacing:-5px;pointer-events:none;white-space:nowrap;user-select:none}
+.processo-wrap{max-width:1200px;margin:0 auto;display:grid;grid-template-columns:1fr 1fr;gap:6rem;align-items:start;position:relative;z-index:2}
+.processo-intro{}
+.processo-progress-label{display:flex;justify-content:space-between;font-family:'Space Mono',monospace;font-size:0.68rem;letter-spacing:2px;color:var(--grey);margin-bottom:0.5rem;text-transform:uppercase}
+.processo-progress-label span:last-child{color:var(--lime)}
+.processo-progress-track{height:2px;background:rgba(255,255,255,0.07);border-radius:2px;overflow:hidden;margin-bottom:3rem}
+.processo-progress-fill{height:100%;background:linear-gradient(90deg,var(--purple),var(--lime));border-radius:2px;width:0%;transition:width 1.4s cubic-bezier(.23,1,.32,1)}
+
+/* Steps list */
+.processo-steps{display:flex;flex-direction:column;gap:0}
+.pstep{display:flex;gap:0;align-items:stretch;opacity:0;transform:translateX(-24px) scale(0.98);transition:opacity 0.55s cubic-bezier(.23,1,.32,1),transform 0.55s cubic-bezier(.23,1,.32,1)}
+.pstep.vis{opacity:1;transform:translateX(0) scale(1)}
+
+/* Left: connector line + dot */
+.pstep-line{display:flex;flex-direction:column;align-items:center;width:36px;flex-shrink:0}
+.pstep-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0;margin-top:14px;position:relative;z-index:1}
+.pstep.done .pstep-dot{background:var(--lime);box-shadow:0 0 0 3px rgba(200,241,53,0.15)}
+.pstep.pending .pstep-dot{background:transparent;border:2px dashed rgba(139,92,246,0.5)}
+.pstep-connector{width:1px;flex:1;min-height:12px}
+.pstep:not(:last-child) .pstep-connector{background:rgba(255,255,255,0.07)}
+.pstep:last-child .pstep-connector{background:transparent}
+
+/* Right: card */
+.pstep-card{flex:1;margin-left:16px;margin-bottom:10px;border-radius:3px;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid transparent;transition:border-color 0.2s,background 0.2s}
+.pstep.done .pstep-card{background:rgba(200,241,53,0.06);border-color:rgba(200,241,53,0.15)}
+.pstep.pending .pstep-card{background:rgba(139,92,246,0.05);border-color:rgba(139,92,246,0.12)}
+.pstep-icon{font-size:1.1rem;width:34px;height:34px;border-radius:3px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.pstep.done .pstep-icon{background:rgba(200,241,53,0.12)}
+.pstep.pending .pstep-icon{background:rgba(139,92,246,0.1)}
+.pstep-body{flex:1;min-width:0}
+.pstep-name{font-size:0.88rem;font-weight:500;color:var(--white);line-height:1.3}
+.pstep.pending .pstep-name{color:rgba(245,245,240,0.5)}
+.pstep-desc{font-size:0.72rem;font-family:'Space Mono',monospace;color:var(--grey);letter-spacing:1px;margin-top:2px}
+.pstep-badge{font-family:'Space Mono',monospace;font-size:0.6rem;letter-spacing:1.5px;text-transform:uppercase;padding:3px 8px;border-radius:2px;white-space:nowrap;flex-shrink:0}
+.pstep.done .pstep-badge{background:rgba(200,241,53,0.12);color:var(--lime);border:1px solid rgba(200,241,53,0.25)}
+.pstep.pending .pstep-badge{background:rgba(139,92,246,0.1);color:var(--purple);border:1px solid rgba(139,92,246,0.2)}
+
+/* Check mark */
+.pstep-check{width:18px;height:18px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.pstep.done .pstep-check{background:var(--lime)}
+.pstep.pending .pstep-check{border:1.5px dashed rgba(139,92,246,0.3)}
+.pstep-check svg{width:9px;height:9px}
+.pstep-check svg path{stroke:#0A0A0A;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;fill:none}
+
+/* Stagger delays */
+.pstep:nth-child(1){transition-delay:0.05s}
+.pstep:nth-child(2){transition-delay:0.10s}
+.pstep:nth-child(3){transition-delay:0.15s}
+.pstep:nth-child(4){transition-delay:0.20s}
+.pstep:nth-child(5){transition-delay:0.25s}
+.pstep:nth-child(6){transition-delay:0.30s}
+.pstep:nth-child(7){transition-delay:0.35s}
+.pstep:nth-child(8){transition-delay:0.40s}
+.pstep:nth-child(9){transition-delay:0.45s}
+
+/* ── RESPONSIVE ── */
+@media(max-width:900px){
+  nav{padding:1rem 1.5rem}
+  .nav-links{display:none}
+  .sobre-grid{grid-template-columns:1fr;gap:3rem}
+  .pacotes-grid{grid-template-columns:1fr;max-width:420px;margin:3.5rem auto 0}
+  footer{grid-template-columns:1fr;text-align:center}
+  .ft-made{text-align:center}
+  #hero{padding:6rem 1.5rem 3rem}
+  #sobre,#nichos,#pacotes,#contato,#processo{padding:5rem 1.5rem}
+  .processo-wrap{grid-template-columns:1fr;gap:3rem}
+}
+@media(max-width:580px){
+  .inf-item{width:220px}
+  .contato-cards{gap:0.75rem}
+  .cc{min-width:130px;padding:1.25rem 1rem}
+}
+/* ── PROCESSO em telas bem pequenas (iPhone SE, Android compactos, etc) ──
+   No card .pstep-card cabiam ícone + nome/desc + check + badge todos numa
+   única linha (flex + justify-content:space-between), o que aperta demais
+   e quebra o layout abaixo de ~420px. Aqui o card passa a quebrar em duas
+   linhas: topo com ícone+nome/desc+check, badge embaixo, em largura cheia. */
+@media(max-width:420px){
+  .processo-bg{display:none}
+  .pstep-line{width:24px}
+  .pstep-card{
+    flex-wrap:wrap;
+    margin-left:8px;
+    padding:12px;
+    gap:8px 10px;
+  }
+  .pstep-icon{width:28px;height:28px;font-size:0.95rem}
+  .pstep-body{flex:1 1 auto;min-width:0}
+  .pstep-name{font-size:0.82rem}
+  .pstep-desc{font-size:0.66rem;white-space:normal}
+  .pstep-check{order:3}
+  .pstep-badge{
+    order:4;
+    flex:0 0 100%;
+    text-align:center;
+    margin-top:2px;
+  }
+}
+</style>
+</head>
+<body>
+
+<!-- CURSOR -->
+<div class="cursor-glow" id="cursorGlow"></div>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">KAUÃ<span style="color:var(--lime)">.</span>LUCAS</div>
+  <ul class="nav-links">
+    <li><a href="#sobre">Sobre</a></li>
+    <li><a href="#depoimentos">Avaliações</a></li>
+    <li><a href="#nichos">Portfólio</a></li>
+    <li><a href="#processo">Processo</a></li>
+    <li><a href="#pacotes">Pacotes</a></li>
+    <li><a href="#contato">Contato</a></li>
+  </ul>
+</nav>
+
+<!-- HERO -->
+<section id="hero">
+  <!-- Troque o caminho abaixo pelo seu arquivo de vídeo (ex: videos/hero-reel.mp4) quando subir o site -->
+  <video class="hero-bg-video" id="heroVideo" autoplay loop muted playsinline preload="metadata">
+    <source src="videos/compiladoWEB (2).webm" type="video/webm">
+  </video>
+  <div class="hero-bg-video-overlay"></div>
+  <div class="hero-bg-text">EDITOR</div>
+  <div class="hero-inner">
+    <div class="hero-eyebrow">Disponível para projetos</div>
+    <div>
+      <span class="hero-name">KAUÃ</span>
+      <span class="hero-name outline">LUCAS</span>
+    </div>
+    <p class="hero-role">Editor de Vídeo — Games · TikTok · Stream · YouTube</p>
+    <div class="hero-stats">
+      <div class="hero-stat"><div class="num">15+</div><div class="lbl">Projetos</div></div>
+      <div class="hero-stat"><div class="num">4.8★</div><div class="lbl">Avaliação</div></div>
+      <div class="hero-stat"><div class="num">100%</div><div class="lbl">Entrega</div></div>
+      
+    </div>
+    <div class="hero-btns">
+      <a href="#pacotes" class="btn-solid">Ver pacotes na Fiverr →</a>
+      <a href="#nichos" class="btn-line">Ver portfólio</a>
+    </div>
+  </div>
+  <div class="hero-sound-toggle" id="heroSoundToggle" onclick="toggleHeroSound()">
+    <svg id="heroSoundIcon" viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1-3.29-2.5-4.03v8.05c1.5-.73 2.5-2.25 2.5-4.02z" opacity="0.4"/><path d="M3 9v6h4l5 5V4L7 9H3z"/></svg>
+    <span style="opacity: 0.5;" id="heroSoundLabel">Ativar som</span>
+  </div>
+  <div class="hero-scroll"><div class="hero-scroll-line"></div>SCROLL</div>
+</section>
+
+<!-- MARQUEE -->
+<div class="marquee-section">
+  <div class="marquee-track" id="mtrack">
+    <span class="marquee-item">GAMEPLAY EDIT</span><span class="marquee-item marquee-dot">✦</span>
+    <span class="marquee-item">TIKTOK</span><span class="marquee-item marquee-dot">✦</span>
+    <span class="marquee-item">STREAM HIGHLIGHTS</span><span class="marquee-item marquee-dot">✦</span>
+    <span class="marquee-item">YOUTUBE</span><span class="marquee-item marquee-dot">✦</span>
+    <span class="marquee-item">MONTAGEM ÉPICA</span><span class="marquee-item marquee-dot">✦</span>
+    <span class="marquee-item">COLOR GRADING</span><span class="marquee-item marquee-dot">✦</span>
+    <span class="marquee-item">BEAT SYNC</span><span class="marquee-item marquee-dot">✦</span>
+    <span class="marquee-item">SHORTS</span><span class="marquee-item marquee-dot">✦</span>
+    <span class="marquee-item">GAMEPLAY EDIT</span><span class="marquee-item marquee-dot">✦</span>
+    <span class="marquee-item">TIKTOK</span><span class="marquee-item marquee-dot">✦</span>
+    <span class="marquee-item">STREAM HIGHLIGHTS</span><span class="marquee-item marquee-dot">✦</span>
+    <span class="marquee-item">YOUTUBE</span><span class="marquee-item marquee-dot">✦</span>
+    <span class="marquee-item">MONTAGEM ÉPICA</span><span class="marquee-item marquee-dot">✦</span>
+    <span class="marquee-item">COLOR GRADING</span><span class="marquee-item marquee-dot">✦</span>
+    <span class="marquee-item">BEAT SYNC</span><span class="marquee-item marquee-dot">✦</span>
+    <span class="marquee-item">SHORTS</span><span class="marquee-item marquee-dot">✦</span>
+  </div>
+</div>
+
+<!-- SOBRE -->
+<section id="sobre">
+  <div class="sobre-grid">
+    <div class="fi">
+      <div class="sobre-label">Quem sou eu</div>
+      <h2 class="sobre-heading">OLHA<br>QUE <span class="hl">LEGAL</span><br>TER TE AQUI</h2>
+      <div class="sobre-body">
+        <p>Olá! Meu nome é Kauã Lucas e sou editor de vídeo e programador. Trabalho com edição de vídeos focados em criar conteúdos mais dinâmicos, envolventes e alinhados com a identidade de cada projeto.<br><br>
+
+        Minha jornada começou criando e editando conteúdos por conta própria, onde desenvolvi minha paixão pela área. Atualmente, dedico meu trabalho ao mercado profissional, aprimorando constantemente minhas habilidades e buscando sempre entregar resultados de qualidade.<br><br>
+
+        Ao longo desse caminho, tive a oportunidade de colaborar com clientes e adaptar meu trabalho a diferentes estilos e necessidades. Cada projeto me ensinou a importância de entender a visão do cliente, transformar ideias em narrativa visual e entregar um resultado que realmente represente o objetivo do conteúdo.<br><br>
+</p>
+      </div>
+      <div class="sobre-tags">
+        <span class="tag">Gaming</span>
+        <span class="tag">TikTok / Reels</span>
+        <span class="tag">YouTube</span>
+        <span class="tag">Shorts</span>
+        <span class="tag">Stream Highlights</span>
+        <span class="tag">Motion Graphics</span>
+        <span class="tag">Sound Design</span>
+        <span class="tag">Color Grading</span>
+        <span class="tag">Storytelling</span>
+      </div>
+    </div>
+    <div class="sobre-video fi">
+      <div class="sobre-photo-wrap">
+        <div class="sobre-photo-frame">
+          <img src="imgs/kaua.jpeg"Kauã Lucas">
+          <span class="sobre-photo-corner tl"></span>
+          <span class="sobre-photo-corner br"></span>
+        </div>
+      </div>
+      <div class="sobre-video-caption">▶ Kauã Lucas — Editor de Vídeo</div>
+    </div>
+  </div>
+</section>
+
+<!-- CARROSSEL INFINITO -->
+<section id="carrossel">
+  <div class="section-row fi">
+    <div class="section-num">01</div>
+    <div class="section-head">
+      <div class="section-label2">Trabalhos recentes</div>
+      <h2 class="section-title2">REEL DE EDIÇÕES</h2>
+    </div>
+  </div>
+  <div class="inf-outer fi">
+    <div class="inf-track" id="infTrack">
+      <!-- Troque o caminho do src pelos seus vídeos reais -->
+      <div class="inf-item">
+        <div class="inf-video">
+          <video loop muted playsinline preload="none">
+            <source src="videos/mattWEB.webm" type="video/webm">
+          </video>
+        </div>
+      </div>
+      <div class="inf-item">
+        <div class="inf-video">
+          <video loop muted playsinline preload="none">
+            <source src="videos/danielWEB.webm" type="video/webm">
+          </video>
+        </div>
+      </div>
+      <div class="inf-item">
+        <div class="inf-video">
+          <video loop muted playsinline preload="none">
+            <source src="videos/demonstracaoWEB.webm" type="video/webm">
+          </video>
+        </div>
+      </div>
+      <div class="inf-item">
+        <div class="inf-video">
+          <video loop muted playsinline preload="none">
+            <source src="videos/NII&LINEWEB.webm" type="video/webm">
+          </video>
+        </div>
+      </div>
+      <div class="inf-item">
+        <div class="inf-video">
+          <video loop muted playsinline preload="none">
+            <source src="videos/título.webm" type="video/webm">
+          </video>
+        </div>
+      </div>
+      <div class="inf-item">
+        <div class="inf-video">
+          <video loop muted playsinline preload="none">
+            <source src="videos/sr conde WEB.webm" type="video/webm">
+          </video>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- DEPOIMENTOS (avaliações reais da Fiverr) -->
+<section id="depoimentos">
+  <div class="section-row fi">
+    <div class="section-num">02</div>
+    <div class="section-head">
+      <div class="section-label2">O que dizem os clientes</div>
+      <h2 class="section-title2">AVALIAÇÕES NA <span style="color:var(--lime)">FIVERR</span></h2>
+      <!-- Resumo de nota: troque pelos números reais somando as 2 gigs -->
+      <div class="dep-rating-summary">
+        <div class="dep-rating-num">4,8</div>
+        <div class="dep-rating-meta">
+          <div class="dep-stars">
+            <svg viewBox="0 0 24 24"><polygon points="12,2 15,9 22,9.5 17,14.5 18.5,22 12,18 5.5,22 7,14.5 2,9.5 9,9"/></svg>
+            <svg viewBox="0 0 24 24"><polygon points="12,2 15,9 22,9.5 17,14.5 18.5,22 12,18 5.5,22 7,14.5 2,9.5 9,9"/></svg>
+            <svg viewBox="0 0 24 24"><polygon points="12,2 15,9 22,9.5 17,14.5 18.5,22 12,18 5.5,22 7,14.5 2,9.5 9,9"/></svg>
+            <svg viewBox="0 0 24 24"><polygon points="12,2 15,9 22,9.5 17,14.5 18.5,22 12,18 5.5,22 7,14.5 2,9.5 9,9"/></svg>
+            <svg viewBox="0 0 24 24"><polygon points="12,2 15,9 22,9.5 17,14.5 18.5,22 12,18 5.5,22 7,14.5 2,9.5 9,9"/></svg>
+          </div>
+          <div class="dep-rating-meta-count">Baseado nas avaliações da Fiverr</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="inf-outer fi">
+    <div class="inf-track" id="depTrack" style="animation-duration:38s">
+
+      <!-- ════════ CARD 1 — troque NOME, INICIAL, TEXTO e GIG ════════ -->
+      <div class="dep-item">
+        <div class="dep-card">
+          <div class="dep-stars">
+            <svg viewBox="0 0 24 24"><polygon points="12,2 15,9 22,9.5 17,14.5 18.5,22 12,18 5.5,22 7,14.5 2,9.5 9,9"/></svg>
+            <svg viewBox="0 0 24 24"><polygon points="12,2 15,9 22,9.5 17,14.5 18.5,22 12,18 5.5,22 7,14.5 2,9.5 9,9"/></svg>
+            <svg viewBox="0 0 24 24"><polygon points="12,2 15,9 22,9.5 17,14.5 18.5,22 12,18 5.5,22 7,14.5 2,9.5 9,9"/></svg>
+            <svg viewBox="0 0 24 24"><polygon points="12,2 15,9 22,9.5 17,14.5 18.5,22 12,18 5.5,22 7,14.5 2,9.5 9,9"/></svg>
+            <svg viewBox="0 0 24 24"><polygon points="12,2 15,9 22,9.5 17,14.5 18.5,22 12,18 5.5,22 7,14.5 2,9.5 9,9"/></svg>
+          </div>
+          <div class="dep-text">"Excelente serviço!."</div>
+          <div class="dep-foot">
+            <div class="dep-avatar">K</div>
+            <div class="dep-who">
+              <div class="dep-name">kevin</div>
+              <div class="dep-gig">Pacote Básic</div>
+            </div>
+            <div class="dep-fiverr-badge">★ Fiverr</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ════════ CARD 2 ════════ -->
+      <div class="dep-item">
+        <div class="dep-card">
+          <div class="dep-stars">
+            <svg viewBox="0 0 24 24"><polygon points="12,2 15,9 22,9.5 17,14.5 18.5,22 12,18 5.5,22 7,14.5 2,9.5 9,9"/></svg>
+            <svg viewBox="0 0 24 24"><polygon points="12,2 15,9 22,9.5 17,14.5 18.5,22 12,18 5.5,22 7,14.5 2,9.5 9,9"/></svg>
+            <svg viewBox="0 0 24 24"><polygon points="12,2 15,9 22,9.5 17,14.5 18.5,22 12,18 5.5,22 7,14.5 2,9.5 9,9"/></svg>
+            <svg viewBox="0 0 24 24"><polygon points="12,2 15,9 22,9.5 17,14.5 18.5,22 12,18 5.5,22 7,14.5 2,9.5 9,9"/></svg>
+            <svg viewBox="0 0 24 24"><polygon points="12,2 15,9 22,9.5 17,14.5 18.5,22 12,18 5.5,22 7,14.5 2,9.5 9,9"/></svg>
+           
+          </div>
+          <div class="dep-text">"Ficou como eu queria! Respostas rápidas e facilidade de comunicação. Recomendo!"</div>
+          <div class="dep-foot">
+            <div class="dep-avatar">D</div>
+            <div class="dep-who">
+              <div class="dep-name">duarte</div>
+              <div class="dep-gig">Pacote Básico</div>
+            </div>
+            <div class="dep-fiverr-badge">★ Fiverr</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ════════ CARD 3 ════════ -->
+      <div class="dep-item">
+        <div class="dep-card">
+          <div class="dep-stars">
+            <svg viewBox="0 0 24 24"><polygon points="12,2 15,9 22,9.5 17,14.5 18.5,22 12,18 5.5,22 7,14.5 2,9.5 9,9"/></svg>
+            <svg viewBox="0 0 24 24"><polygon points="12,2 15,9 22,9.5 17,14.5 18.5,22 12,18 5.5,22 7,14.5 2,9.5 9,9"/></svg>
+            <svg viewBox="0 0 24 24"><polygon points="12,2 15,9 22,9.5 17,14.5 18.5,22 12,18 5.5,22 7,14.5 2,9.5 9,9"/></svg>
+            
+          </div>
+          <div class="dep-text">"Alguma dificuldade em entender o objetivo do vídeo. Faltou compreensão."</div>
+          <div class="dep-foot">
+            <div class="dep-avatar">C</div>
+            <div class="dep-who">
+              <div class="dep-name">cceliaper</div>
+              <div class="dep-gig">Pacote Básico</div>
+            </div>
+            <div class="dep-fiverr-badge">★ Fiverr</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ════════ CARD 4 ════════ -->
+      <div class="dep-item">
+        <div class="dep-card">
+          <div class="dep-stars">
+            <svg viewBox="0 0 24 24"><polygon points="12,2 15,9 22,9.5 17,14.5 18.5,22 12,18 5.5,22 7,14.5 2,9.5 9,9"/></svg>
+            <svg viewBox="0 0 24 24"><polygon points="12,2 15,9 22,9.5 17,14.5 18.5,22 12,18 5.5,22 7,14.5 2,9.5 9,9"/></svg>
+            <svg viewBox="0 0 24 24"><polygon points="12,2 15,9 22,9.5 17,14.5 18.5,22 12,18 5.5,22 7,14.5 2,9.5 9,9"/></svg>
+            <svg viewBox="0 0 24 24"><polygon points="12,2 15,9 22,9.5 17,14.5 18.5,22 12,18 5.5,22 7,14.5 2,9.5 9,9"/></svg>
+            <svg viewBox="0 0 24 24"><polygon points="12,2 15,9 22,9.5 17,14.5 18.5,22 12,18 5.5,22 7,14.5 2,9.5 9,9"/></svg>
+          </div>
+          <div class="dep-text">"Very good worker, very good comunication, and very well done with the video. thank you :D"</div>
+          <div class="dep-foot">
+            <div class="dep-avatar">L</div>
+            <div class="dep-who">
+              <div class="dep-name">leoconde</div>
+              <div class="dep-gig">Pacote Básico</div>
+            </div>
+            <div class="dep-fiverr-badge">★ Fiverr</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ════════ CARD 5 ════════ -->
+      <div class="dep-item">
+        <div class="dep-card">
+          <div class="dep-stars">
+            <svg viewBox="0 0 24 24"><polygon points="12,2 15,9 22,9.5 17,14.5 18.5,22 12,18 5.5,22 7,14.5 2,9.5 9,9"/></svg>
+            <svg viewBox="0 0 24 24"><polygon points="12,2 15,9 22,9.5 17,14.5 18.5,22 12,18 5.5,22 7,14.5 2,9.5 9,9"/></svg>
+            <svg viewBox="0 0 24 24"><polygon points="12,2 15,9 22,9.5 17,14.5 18.5,22 12,18 5.5,22 7,14.5 2,9.5 9,9"/></svg>
+            <svg viewBox="0 0 24 24"><polygon points="12,2 15,9 22,9.5 17,14.5 18.5,22 12,18 5.5,22 7,14.5 2,9.5 9,9"/></svg>
+            <svg viewBox="0 0 24 24"><polygon points="12,2 15,9 22,9.5 17,14.5 18.5,22 12,18 5.5,22 7,14.5 2,9.5 9,9"/></svg>
+          </div>
+          <div class="dep-text">"Muito bom trabalho, eu recomendo."</div>
+          <div class="dep-foot">
+            <div class="dep-avatar">O</div>
+            <div class="dep-who">
+              <div class="dep-name">oscarbala</div>
+              <div class="dep-gig">Pacote Básico</div>
+            </div>
+            <div class="dep-fiverr-badge">★ Fiverr</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ════════ CARD 6 ════════ -->
+      <div class="dep-item">
+        <div class="dep-card">
+          <div class="dep-stars">
+            <svg viewBox="0 0 24 24"><polygon points="12,2 15,9 22,9.5 17,14.5 18.5,22 12,18 5.5,22 7,14.5 2,9.5 9,9"/></svg>
+            <svg viewBox="0 0 24 24"><polygon points="12,2 15,9 22,9.5 17,14.5 18.5,22 12,18 5.5,22 7,14.5 2,9.5 9,9"/></svg>
+            <svg viewBox="0 0 24 24"><polygon points="12,2 15,9 22,9.5 17,14.5 18.5,22 12,18 5.5,22 7,14.5 2,9.5 9,9"/></svg>
+            <svg viewBox="0 0 24 24"><polygon points="12,2 15,9 22,9.5 17,14.5 18.5,22 12,18 5.5,22 7,14.5 2,9.5 9,9"/></svg>
+            <svg viewBox="0 0 24 24"><polygon points="12,2 15,9 22,9.5 17,14.5 18.5,22 12,18 5.5,22 7,14.5 2,9.5 9,9"/></svg>
+          </div>
+          <div class="dep-text">"Mto bom o projeto e um bom profissional, super comunicativo e atendeu todos os meus pedidos!!."</div>
+          <div class="dep-foot">
+            <div class="dep-avatar">M</div>
+            <div class="dep-who">
+              <div class="dep-name">matheus</div>
+              <div class="dep-gig">Pacote Básico</div>
+            </div>
+            <div class="dep-fiverr-badge">★ Fiverr</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ════════ CARD 7 ════════ -->
+      <div class="dep-item">
+        <div class="dep-card">
+          <div class="dep-stars">
+            <svg viewBox="0 0 24 24"><polygon points="12,2 15,9 22,9.5 17,14.5 18.5,22 12,18 5.5,22 7,14.5 2,9.5 9,9"/></svg>
+            <svg viewBox="0 0 24 24"><polygon points="12,2 15,9 22,9.5 17,14.5 18.5,22 12,18 5.5,22 7,14.5 2,9.5 9,9"/></svg>
+            <svg viewBox="0 0 24 24"><polygon points="12,2 15,9 22,9.5 17,14.5 18.5,22 12,18 5.5,22 7,14.5 2,9.5 9,9"/></svg>
+            <svg viewBox="0 0 24 24"><polygon points="12,2 15,9 22,9.5 17,14.5 18.5,22 12,18 5.5,22 7,14.5 2,9.5 9,9"/></svg>
+            <svg viewBox="0 0 24 24"><polygon points="12,2 15,9 22,9.5 17,14.5 18.5,22 12,18 5.5,22 7,14.5 2,9.5 9,9"/></svg>
+          </div>
+          <div class="dep-text">"Muito bom, sem reclamações, ótimo editor!."</div>
+          <div class="dep-foot">
+            <div class="dep-avatar">M</div>
+            <div class="dep-who">
+              <div class="dep-name">david</div>
+              <div class="dep-gig">Pacote Premium</div>
+            </div>
+            <div class="dep-fiverr-badge">★ Fiverr</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- NICHOS -->
+<section id="nichos">
+  <div class="nichos-wrap">
+    <div class="fi">
+      <div class="section-row" style="padding:0;max-width:100%">
+        <div class="section-num">03</div>
+        <div class="section-head">
+          <div class="section-label2">Portfólio</div>
+          <h2 class="section-title2">NICHOS QUE ATENDO</h2>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════════════════════════════
+         GRID DE VÍDEOS — como adicionar mais:
+         Copie um bloco <div class="nv">...</div> inteiro (de <div
+         class="nv" até o </div> que fecha ele) e cole antes do </div>
+         final do grid. Troque apenas:
+           - VIDEO_ID_X           → ID real do vídeo no YouTube
+           - alt="..."            → nome/descrição do vídeo
+           - nv-fallback-icon     → emoji do nicho (🎮📱📺▶⚡🎬 etc)
+         O grid se ajusta solo a qualquer quantidade de vídeos.
+         ════════════════════════════════════════════════════════════ -->
+    <div class="nv-grid-wrap is-collapsed" id="nvGridWrap">
+      <div class="nv-grid fi" id="nichoGrid">
+
+        <div class="nv" onclick="openModal('JmGvjzg7Spo')" data-video-id="JmGvjzg7Spo">
+          <div class="nv-bg"></div>
+          <div class="nv-fallback-icon">🎮</div>
+          <img alt="Free Fire — Kill Compilation" loading="lazy">
+          <div class="nv-over"><div class="nv-play"><svg viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg></div></div>
+        </div>
+
+        <div class="nv" onclick="openModal('DrvUUCnNVHo')" data-video-id="DrvUUCnNVHo">
+          <div class="nv-bg"></div>
+          <div class="nv-fallback-icon">▶</div>
+          <img alt="Edit Viral — Transições Rítmicas" loading="lazy">
+          <div class="nv-over"><div class="nv-play"><svg viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg></div></div>
+        </div>
+
+        <div class="nv" onclick="openModal('BPeeUh8YBbY')" data-video-id="BPeeUh8YBbY">
+          <div class="nv-bg"></div>
+          <div class="nv-fallback-icon">▶</div>
+          <img alt="Vlog Completo — Dia de Gameplay" loading="lazy">
+          <div class="nv-over"><div class="nv-play"><svg viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg></div></div>
+        </div>
+
+        <div class="nv" onclick="openModal('BpdDvB5bqQU')" data-video-id="BpdDvB5bqQU">
+          <div class="nv-bg"></div>
+          <div class="nv-fallback-icon">▶</div>
+          <img alt="Live Highlights — Melhores Clips" loading="lazy">
+          <div class="nv-over"><div class="nv-play"><svg viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg></div></div>
+        </div>
+
+        <div class="nv" onclick="openModal('7fPIulej_cI')" data-video-id="7fPIulej_cI">
+          <div class="nv-bg"></div>
+          <div class="nv-fallback-icon">▶</div>
+          <img alt="Epic Montage — Cinematic Grade" loading="lazy">
+          <div class="nv-over"><div class="nv-play"><svg viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg></div></div>
+        </div>
+
+        <div class="nv" onclick="openModal('1zsSh3UaGTU')" data-video-id="1zsSh3UaGTU">
+          <div class="nv-bg"></div>
+          <div class="nv-fallback-icon">▶</div>
+          <img alt="Epic Montage — Cinematic Grade" loading="lazy">
+          <div class="nv-over"><div class="nv-play"><svg viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg></div></div>
+        </div>
+
+        <div class="nv" onclick="openModal('Vv3mjxGqcnI')" data-video-id="Vv3mjxGqcnI">
+          <div class="nv-bg"></div>
+          <div class="nv-fallback-icon">▶</div>
+          <img alt="Epic Montage — Cinematic Grade" loading="lazy">
+          <div class="nv-over"><div class="nv-play"><svg viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg></div></div>
+        </div>
+
+        <div class="nv" onclick="openModal('bRo6Nezca0I')" data-video-id="bRo6Nezca0I">
+          <div class="nv-bg"></div>
+          <div class="nv-fallback-icon">▶</div>
+          <img alt="Epic Montage — Cinematic Grade" loading="lazy">
+          <div class="nv-over"><div class="nv-play"><svg viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg></div></div>
+        </div>
+
+        <div class="nv" onclick="openModal('qi2fQkn5_0A')" data-video-id="qi2fQkn5_0A">
+          <div class="nv-bg"></div>
+          <div class="nv-fallback-icon">▶</div>
+          <img alt="Epic Montage — Cinematic Grade" loading="lazy">
+          <div class="nv-over"><div class="nv-play"><svg viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg></div></div>
+        </div>
+
+
+
+      </div>
+    </div>
+
+    <div class="nv-toggle-row">
+      <button class="nv-toggle-btn" id="nvToggleBtn" onclick="toggleNichoGrid()">
+        <span id="nvToggleLabel">Ver mais</span>
+        <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+    </div>
+  </div>
+</section>
+
+
+<section id="processo">
+  <div class="processo-bg">WORKFLOW</div>
+  <div class="processo-wrap">
+
+    <!-- COLUNA ESQUERDA: intro -->
+    <div class="processo-fi">
+      <div class="section-label2" style="margin-bottom:0.75rem">Como eu trabalho</div>
+      <h2 class="section-title2" style="margin-bottom:1.5rem">O PROCESSO<br>DA <span style="color:var(--lime)">EDIÇÃO</span></h2>
+      <p style="color:var(--grey);font-size:0.92rem;line-height:1.85;margin-bottom:2rem">Cada vídeo que entrego passa por um fluxo estruturado do início ao fim. Aqui você vê exatamente como funciona — da organização dos arquivos até o export final. Nada fica pra trás.</p>
+
+      <!-- Barra de progresso -->
+      <div class="processo-progress-label">
+        <span id="pProgressText">Carregando...</span>
+        <span id="pProgressPct"></span>
+      </div>
+      <div class="processo-progress-track">
+        <div class="processo-progress-fill" id="pProgressFill"></div>
+      </div>
+
+      <!-- Stats rápidos -->
+      <div style="display:flex;gap:2rem;flex-wrap:wrap">
+        <div>
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:2.5rem;color:var(--lime);line-height:1" id="pDoneCount">0</div>
+          <div style="font-family:'Space Mono',monospace;font-size:0.65rem;letter-spacing:2px;text-transform:uppercase;color:var(--grey);margin-top:0.2rem">Concluídas</div>
+        </div>
+        <div>
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:2.5rem;color:var(--purple);line-height:1" id="pPendingCount">0</div>
+          <div style="font-family:'Space Mono',monospace;font-size:0.65rem;letter-spacing:2px;text-transform:uppercase;color:var(--grey);margin-top:0.2rem">Em andamento</div>
+        </div>
+        <div>
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:2.5rem;color:rgba(245,245,240,0.2);line-height:1" id="pTotalCount">0</div>
+          <div style="font-family:'Space Mono',monospace;font-size:0.65rem;letter-spacing:2px;text-transform:uppercase;color:var(--grey);margin-top:0.2rem">Total de etapas</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- COLUNA DIREITA: steps -->
+    <div>
+      <div class="processo-steps" id="processoSteps"></div>
+    </div>
+
+  </div>
+</section>
+
+<!-- PACOTES -->
+<section id="pacotes">
+  <div class="pacotes-wrap fi">
+    <div style="display:flex;align-items:flex-end;gap:1.5rem;margin-bottom:0.5rem">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:5rem;color:rgba(255,255,255,0.04);line-height:1">04</div>
+      <div>
+        <div class="section-label2">Minha gig na Fiverr</div>
+        <h2 class="section-title2">ESCOLHA SEU PACOTE</h2>
+      </div>
+    </div>
+    <p style="color:var(--grey);font-size:0.9rem;max-width:540px">Clique em qualquer pacote para ser direcionado direto para a minha gig na Fiverr e fecharmos.</p>
+    <div class="pacotes-grid">
+      <div class="pac">
+        <div class="pac-tier">Básico</div>
+        <div class="pac-name">STARTER</div>
+        <div class="pac-price">$15</div>
+        <div class="pac-price-sub">
+          - por vídeo · entrega em 5 dias -
+          <br>
+          Edição de vídeo completa e profissional, incluindo cortes, transições, tela verde, efeitos sonoros
+        </div>
+        <div class="pac-divider"></div>
+        <ul class="pac-features">
+          <li>Vídeo de até 30 minutos</li>
+          <li>Legendas</li>
+          <li>Color grading</li>
+          <li>Sound design & mixing</li>
+          <li>Motion graphics</li>
+          <li>3 revisão</li>
+          <li class="off">Thumbnail inclusa</li>
+        </ul>
+        <a href="https://br.fiverr.com/kaua_lucas/editar-seus-videos-de-gameplays-ou-do-tiktok" target="_blank" class="pac-btn">Contratar →</a>
+      </div>
+      <div class="pac hot">
+        <div class="pac-tier">Padrão</div>
+        <div class="pac-name">Padrão</div>
+        <div class="pac-price">$25</div>
+        <div class="pac-price-sub">
+          - por vídeo · entrega em 6 dias -
+          <br>
+          Edição de vídeo completa e profissional, incluindo cortes, transições, tela verde, efeitos sonoros
+        </div>
+        <div class="pac-divider"></div>
+        <ul class="pac-features">
+          <li>Vídeo de até 60 minutos</li>
+          <li>Legendas</li>
+          <li>Color grading</li>
+          <li>Sound design & mixing</li>
+          <li>Motion graphics</li>
+          <li>3 revisão</li>
+          <li class="off">Thumbnail inclusa</li>
+        </ul>
+        <a href="https://br.fiverr.com/kaua_lucas/editar-seus-videos-de-gameplays-ou-do-tiktok" target="_blank" class="pac-btn">Contratar →</a>
+      </div>
+      <div class="pac">
+        <div class="pac-tier">Premium</div>
+        <div class="pac-name">Premium</div>
+        <div class="pac-price">$35</div>
+        <div class="pac-price-sub">
+          - por vídeo · entrega em 7 dias -
+          <br>
+          Edição de vídeo completa e profissional, incluindo cortes, transições, tela verde, efeitos sonoros
+        </div>
+        <div class="pac-divider"></div>
+        <ul class="pac-features">
+          <li>Vídeo de até 120 minutos</li>
+          <li>Legendas</li>
+          <li>Color grading</li>
+          <li>Sound design & mixing</li>
+          <li>Motion graphics</li>
+          <li>3 revisão</li>
+          <li class="off">Thumbnail inclusa</li>
+        </ul>
+        <a href="https://br.fiverr.com/kaua_lucas/editar-seus-videos-de-gameplays-ou-do-tiktok" target="_blank" class="pac-btn">Contratar →</a>
+      </div>
+    </div>
+    <div class="pacotes-cta">
+      <p>Tem um projeto personalizado? Vamos conversar.</p>
+      <a href="https://br.fiverr.com/kaua_lucas/editar-seus-videos-de-gameplays-ou-do-tiktok" target="_blank" class="btn-solid">💬 Falar comigo na Fiverr</a>
+    </div>
+  </div>
+</section>
+
+<!-- CONTATO -->
+<section id="contato">
+  <div class="contato-bg">CONTATO</div>
+  <div class="contato-wrap fi">
+    <div class="section-label2" style="display:inline-block;margin-bottom:1rem">Vamos trabalhar juntos</div>
+    <h2 class="contato-heading">PRONTO<br>PARA O <span class="hl">PRÓXIMO<br>NÍVEL?</span></h2>
+    <div class="contato-cards">
+      <a href="https://br.fiverr.com/kaua_lucas/editar-seus-videos-de-gameplays-ou-do-tiktok" target="_blank" class="cc">
+        <div class="ci">🌐</div><div class="cl">Fiverr</div><div class="cv">kaua_lucas</div>
+      </a>
+      <a href="https://discord.com/users/esmaaisk" target="_blank" class="cc">
+        <div class="ci"><svg viewBox="0 0 24 24"><path d="M20.317 4.37a19.79 19.79 0 0 0-4.885-1.515.07.07 0 0 0-.073.035c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.07.07 0 0 0-.073-.035A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128c.126-.094.252-.192.372-.292a.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.073.073 0 0 1 .078.01c.12.1.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.893.076.076 0 0 0-.041.106c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg></div>
+        <div class="cl">Discord</div><div class="cv">esmaaisk</div>
+      </a>
+      <a href="https://www.instagram.com/editordevideo.kaua?igsh=Y2o4b3c3bHRncTVm" target="_blank" class="cc">
+        <div class="ci">📸</div><div class="cl">Instagram</div><div class="cv">@editordevideo.kaua</div>
+      </a>
+      
+    </div>
+    <a href="https://br.fiverr.com/kaua_lucas/editar-seus-videos-de-gameplays-ou-do-tiktok" target="_blank" class="btn-solid">Ir para minha Fiverr →</a>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="ft-logo">KAUÃ<span>.</span>LUCAS</div>
+  <div class="ft-copy">© 2025 Kauã Lucas · Editor de Vídeo · Brasil<br>Todos os direitos reservados</div>
+  <div class="ft-made">Feito com <span>♥</span> e Kdenlive</div>
+</footer>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modalOv" onclick="closeIfOut(event)">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <div class="modal-video"><iframe id="modalFrame" allow="autoplay; encrypted-media" allowfullscreen></iframe></div>
+  </div>
+</div>
+
+<script>
+// cursor glow
+document.addEventListener('mousemove',function(e){
+  var g=document.getElementById('cursorGlow');
+  if(g){g.style.left=e.clientX+'px';g.style.top=e.clientY+'px'}
+});
+
+// modal
+function openModal(id){
+  document.getElementById('modalFrame').src='https://www.youtube.com/embed/'+id+'?autoplay=1&rel=0';
+  document.getElementById('modalOv').classList.add('on');
+  document.body.style.overflow='hidden';
+}
+function closeModal(){
+  document.getElementById('modalFrame').src='';
+  document.getElementById('modalOv').classList.remove('on');
+  document.body.style.overflow='';
+}
+function closeIfOut(e){if(e.target===document.getElementById('modalOv'))closeModal();}
+document.addEventListener('keydown',function(e){if(e.key==='Escape')closeModal();});
+
+// ── GRID DE NICHOS: VER MAIS / VER MENOS ───────────────────────
+// A altura "fechada" não é um número fixo no CSS — é medida aqui a
+// partir da altura real do primeiro card (que usa aspect-ratio, então
+// varia com a largura da tela). Assim, adicionar/remover vídeos ou
+// mudar de dispositivo nunca corta um card no meio.
+(function(){
+  var wrap=document.getElementById('nvGridWrap');
+  var grid=document.getElementById('nichoGrid');
+  var btn=document.getElementById('nvToggleBtn');
+  var label=document.getElementById('nvToggleLabel');
+  if(!wrap||!grid||!btn)return;
+
+  var ROWS_WHEN_COLLAPSED=2; // quantas linhas de cards mostrar fechado
+  var isOpen=false;
+
+  function getColumnCount(){
+    var firstCard=grid.querySelector('.nv');
+    if(!firstCard)return 1;
+    var gridWidth=grid.clientWidth;
+    var cardWidth=firstCard.getBoundingClientRect().width;
+    var gap=parseFloat(getComputedStyle(grid).gap)||0;
+    return Math.max(1,Math.round((gridWidth+gap)/(cardWidth+gap)));
+  }
+  function collapsedHeight(){
+    var firstCard=grid.querySelector('.nv');
+    if(!firstCard)return 0;
+    var cardHeight=firstCard.getBoundingClientRect().height;
+    var gap=parseFloat(getComputedStyle(grid).gap)||0;
+    return cardHeight*ROWS_WHEN_COLLAPSED+gap*(ROWS_WHEN_COLLAPSED-1);
+  }
+  function totalRows(){
+    var cols=getColumnCount();
+    var count=grid.querySelectorAll('.nv').length;
+    return Math.ceil(count/cols);
+  }
+  function applyState(){
+    if(isOpen){
+      wrap.style.maxHeight=grid.scrollHeight+'px';
+      wrap.classList.remove('is-collapsed');
+      label.textContent='Ver menos';
+      btn.classList.add('open');
+    }else{
+      wrap.style.maxHeight=collapsedHeight()+'px';
+      wrap.classList.add('is-collapsed');
+      label.textContent='Ver mais';
+      btn.classList.remove('open');
+    }
+  }
+
+  // Se já couber tudo dentro da altura "fechada" (poucos vídeos ou tela
+  // larga o bastante pra encaixar todos numa linha), escondemos o botão.
+  function maybeHideButton(){
+    var row=document.querySelector('.nv-toggle-row');
+    if(totalRows()<=ROWS_WHEN_COLLAPSED){
+      if(row)row.style.display='none';
+      wrap.style.maxHeight='none';
+      wrap.classList.remove('is-collapsed');
+    }else if(row){
+      row.style.display='flex';
+    }
+  }
+
+  window.toggleNichoGrid=function(){
+    isOpen=!isOpen;
+    applyState();
+    if(!isOpen){
+      var section=document.getElementById('nichos');
+      if(section)section.scrollIntoView({behavior:'smooth',block:'start'});
+    }
+  };
+
+  function refresh(){
+    if(!isOpen)applyState();
+    maybeHideButton();
+  }
+
+  refresh();
+  window.addEventListener('resize',refresh);
+})();
+// ────────────────────────────────────────────────────────────────
+
+// ── THUMBNAILS DOS CARDS DE NICHO ──────────────────────────────
+// Por padrão cada card mostra um fallback estilizado (ícone com fundo
+// texturizado), porque os data-video-id ainda estão como placeholder
+// (ex: VIDEO_ID_GAME_1). Quando você tiver o vídeo no YouTube:
+//
+//   1. Pegue o ID do vídeo na URL: youtube.com/watch?v=ESSE_ID_AQUI
+//   2. No HTML, troque as DUAS ocorrências do placeholder pelo ID real:
+//        onclick="openModal('VIDEO_ID_GAME_1')"   →  onclick="openModal('abcDEF123')"
+//        data-video-id="VIDEO_ID_GAME_1"          →  data-video-id="abcDEF123"
+//   3. Pronto — o script abaixo detecta automaticamente que não é mais
+//      placeholder e carrega a thumbnail real no lugar do fallback.
+//      Não precisa editar nada aqui.
+(function(){
+  document.querySelectorAll('.nv[data-video-id]').forEach(function(card){
+    var id=card.getAttribute('data-video-id');
+    var isPlaceholder=/^VIDEO_ID_/.test(id);
+    if(isPlaceholder)return; // mantém o fallback estilizado
+
+    var img=card.querySelector('img');
+    if(img)img.src='https://img.youtube.com/vi/'+id+'/mqdefault.jpg';
+  });
+})();
+// ────────────────────────────────────────────────────────────────
+
+// (vídeo de apresentação removido — agora é foto estática na seção Sobre)
+
+// som do vídeo de fundo da hero
+function toggleHeroSound(){
+  var v=document.getElementById('heroVideo');
+  var label=document.getElementById('heroSoundLabel');
+  v.muted=!v.muted;
+  if(!v.muted){
+    // garante que o vídeo está tocando ao ativar o som (alguns navegadores pausam)
+    v.play().catch(function(){});
+    label.textContent='Desativar som';
+  }else{
+    label.textContent='Ativar som';
+  }
+}
+
+// infinite carousel clone + lazy load por viewport
+(function(){
+  var track=document.getElementById('infTrack');
+  if(!track)return;
+
+  // Log de erro nos vídeos originais (silencioso por padrão; abra o console pra ver)
+  track.querySelectorAll('video').forEach(function(v){
+    v.addEventListener('error',function(){
+      console.error('Falha ao carregar vídeo original:',v.currentSrc||v.querySelector('source').src);
+    });
+  });
+
+  // Cria os clones (necessários para a matemática do translateX(-50%) do
+  // @keyframes infScroll: a trilha precisa ter o dobro do conteúdo visível
+  // pra o loop não mostrar um vão vazio quando reinicia). NENHUM load()/play()
+  // é feito aqui — isso agora é responsabilidade do IntersectionObserver abaixo,
+  // tanto para os originais quanto para os clones.
+  var kids=Array.from(track.children);
+  kids.forEach(function(el){
+    var clone=el.cloneNode(true);
+
+    // Trata <iframe> (caso volte a usar embed do YouTube)
+    var iframes=clone.querySelectorAll('iframe');
+    iframes.forEach(function(iframe){
+      var src=iframe.src;
+      var m=src.match(/embed\/([^?]+)/);
+      if(m){
+        var wrap=iframe.parentElement;
+        iframe.remove();
+        wrap.style.backgroundImage='url(https://img.youtube.com/vi/'+m[1]+'/mqdefault.jpg)';
+        wrap.style.backgroundSize='cover';
+        wrap.style.backgroundPosition='center';
+        wrap.innerHTML='<div class="inf-clone-overlay"></div>';
+      }
+    });
+
+    // Vídeo clonado: garante mute e loga erro de fonte, mas não toca nem
+    // carrega ainda — fica em preload="none" igual ao original até entrar
+    // na viewport.
+    var clonedVideos=clone.querySelectorAll('video');
+    clonedVideos.forEach(function(v){
+      v.muted=true;
+      v.removeAttribute('autoplay');
+      v.preload='none';
+      v.addEventListener('error',function(){
+        console.error('Falha ao carregar vídeo clonado:',v.currentSrc||(v.querySelector('source')&&v.querySelector('source').src));
+      });
+    });
+
+    track.appendChild(clone);
+  });
+
+  // Lazy load + play/pause por viewport para TODOS os 12 vídeos (6 originais
+  // + 6 clones). Ao entrar na área observada, dispara load() (se ainda não
+  // carregou) e play(); ao saír, pausa (libera CPU/GPU sem perder o buffer
+  // já baixado, então ao voltar pra tela ele retoma sem rebaixar nada).
+  var allVideos=track.querySelectorAll('video');
+  var lazyObserver=new IntersectionObserver(function(entries){
+    entries.forEach(function(entry){
+      var v=entry.target;
+      if(entry.isIntersecting){
+        if(v.preload==='none'){
+          v.preload='auto';
+          v.load();
+        }
+        var playPromise=v.play();
+        if(playPromise&&playPromise.catch){
+          playPromise.catch(function(){/* autoplay bloqueado; tentará de novo na próxima entrada na viewport */});
+        }
+      }else{
+        v.pause();
+      }
+    });
+  },{root:null,rootMargin:'200px',threshold:0.01});
+
+  allVideos.forEach(function(v){
+    lazyObserver.observe(v);
+  });
+})();
+
+// infinite carousel clone — DEPOIMENTOS (mesma lógica do reel, mas sem
+// vídeo/lazy-load: só duplica os cards de texto pra fechar a matemática
+// do translateX(-50%) usado pelo @keyframes infScroll).
+(function(){
+  var track=document.getElementById('depTrack');
+  if(!track)return;
+  var kids=Array.from(track.children);
+  kids.forEach(function(el){
+    track.appendChild(el.cloneNode(true));
+  });
+})();
+
+// fade-in observer
+var obs=new IntersectionObserver(function(entries){
+  entries.forEach(function(e){
+    if(e.isIntersecting)e.target.classList.add('vis');
+  });
+},{threshold:0.1});
+document.querySelectorAll('.fi').forEach(function(el){obs.observe(el);});
+
+
+// ── PROCESSO DA EDIÇÃO ──────────────────────────────────────
+// Para editar: adicione, remova ou reordene os objetos abaixo.
+// Campos: icon (emoji), name (nome da etapa), desc (subtítulo), done (true/false)
+var PROCESSO_STEPS=[
+  {icon:'⬇',name:'Baixar os arquivos',    desc:'Download dos assets',          done:true},
+  {icon:'📁',name:'Organizar o projeto',  desc:'Estrutura de pastas e naming',  done:true},
+  {icon:'🎚',name:'Nivelamento de áudio', desc:'Ajuste de volume e dinâmica',   done:true},
+  {icon:'👂',name:'Revisão do conteúdo',  desc:'Escuta do áudio + roteiro',     done:true},
+  {icon:'✂️',name:'Corte e decupagem',    desc:'Montagem e seleção das takes',  done:true},
+  {icon:'🎨',name:'Color grading',        desc:'Correção e gradação de cores',  done:false},
+  {icon:'🎬',name:'Adicionar b-rolls',    desc:'Imagens de apoio',              done:false},
+  {icon:'✨',name:'Animações',            desc:'Motion graphics',               done:false},
+  {icon:'🎵',name:'Trilha sonora',        desc:'Inserção e mixagem',            done:false}
+];
+
+(function(){
+  var steps=PROCESSO_STEPS;
+  var done=steps.filter(function(s){return s.done}).length;
+  var total=steps.length;
+  var pct=Math.round(done/total*100);
+
+  // Counters
+  document.getElementById('pDoneCount').textContent=done;
+  document.getElementById('pPendingCount').textContent=total-done;
+  document.getElementById('pTotalCount').textContent=total;
+  document.getElementById('pProgressText').textContent=done+' de '+total+' etapas';
+  document.getElementById('pProgressPct').textContent=pct+'%';
+
+  // Build steps
+  var container=document.getElementById('processoSteps');
+  steps.forEach(function(step,i){
+    var cls=step.done?'done':'pending';
+    var badge=step.done?'Concluído':'Pendente';
+    var checkSvg=step.done
+      ?'<svg viewBox="0 0 10 10"><path d="M1.5 5L4 7.5L8.5 2.5"/></svg>'
+      :'';
+    var el=document.createElement('div');
+    el.className='pstep '+cls;
+    el.innerHTML=
+      '<div class="pstep-line">'+
+        '<div class="pstep-dot"></div>'+
+        '<div class="pstep-connector"></div>'+
+      '</div>'+
+      '<div class="pstep-card">'+
+        '<div class="pstep-icon">'+step.icon+'</div>'+
+        '<div class="pstep-body">'+
+          '<div class="pstep-name">'+step.name+'</div>'+
+          (step.desc?'<div class="pstep-desc">'+step.desc+'</div>':'')+
+        '</div>'+
+        '<div class="pstep-check">'+checkSvg+'</div>'+
+        '<div class="pstep-badge">'+badge+'</div>'+
+      '</div>';
+    container.appendChild(el);
+  });
+
+  // Animação reversível ao scroll: entra ao aparecer, volta ao sair da tela
+  var procObs=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(e.isIntersecting){
+        e.target.classList.add('vis');
+      }else{
+        e.target.classList.remove('vis');
+      }
+    });
+  },{threshold:0.15});
+
+  document.querySelectorAll('#processo .processo-fi').forEach(function(el){procObs.observe(el);});
+  document.querySelectorAll('#processo .pstep').forEach(function(el){procObs.observe(el);});
+
+  // Barra de progresso e contadores: anima junto com a entrada da coluna esquerda
+  var introObs=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(e.isIntersecting){
+        document.getElementById('pProgressFill').style.width=pct+'%';
+      }else{
+        document.getElementById('pProgressFill').style.width='0%';
+      }
+    });
+  },{threshold:0.15});
+  introObs.observe(document.querySelector('#processo .processo-fi'));
+})();
+// ────────────────────────────────────────────────────────────
+</script>
+</body>
+</html>
