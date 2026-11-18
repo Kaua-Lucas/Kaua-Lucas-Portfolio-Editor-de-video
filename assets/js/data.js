@@ -32,8 +32,11 @@ window.SITE_DATA = {
 
   // Vídeos publicados no YouTube. Títulos conferidos no YouTube em 14/11/2026.
   YOUTUBE: [
-    { id: 'DrvUUCnNVHo', title: 'Compilado dos melhores momentos editados', cats: ['highlights', 'games'] },
-    { id: 'BPeeUh8YBbY', title: 'Batida no ritmo musical', cats: ['ritmo'] },
+    { id: 'YtU0kspTOSM', title: 'Venda de imóveis', cats: ['youtube'] },
+    { id: '3f6bPSSR6No', title: 'Área de saúde', cats: ['youtube'] },
+    { id: 'UJgr6Dq5aW4', title: 'GTA V (part1)', cats: ['games'] },
+    { id: '9p1nuqNJA7g', title: 'Apresentação do canal', cats: ['youtube'] },
+    { id: '8Q6gq_Hfnic', title: 'Video demonstração jogo de tiro', cats: ['games'] },
     { id: 'BpdDvB5bqQU', title: 'Vídeo promocional', cats: ['youtube'] },
     { id: '1zsSh3UaGTU', title: 'Filosofia — anime', cats: ['youtube'] },
     { id: 'bRo6Nezca0I', title: 'Anime', cats: ['youtube'] },
@@ -41,14 +44,11 @@ window.SITE_DATA = {
     { id: '7fPIulej_cI', title: 'Gameplay', cats: ['games'] },
     { id: 'Vv3mjxGqcnI', title: 'Gameplay', cats: ['games'] },
     { id: 'qi2fQkn5_0A', title: 'Gameplay', cats: ['games'] },
-    { id: 'UJgr6Dq5aW4', title: 'GTA V (part1)', cats: ['games'] },
-    { id: '8Q6gq_Hfnic', title: 'Video demonstração jogo de tiro', cats: ['games'] },
-    { id: 'YtU0kspTOSM', title: 'Venda de imóveis', cats: ['youtube'] },
-    { id: '9p1nuqNJA7g', title: 'Apresentação do canal', cats: ['youtube'] },
     { id: 'Hm982iuA5Z8', title: 'Gameplay', cats: ['games'] },
-    { id: '3f6bPSSR6No', title: 'Área de saúde', cats: ['youtube'] },
     { id: '9Lfu_nJ2NV0', title: 'Histórias', cats: ['youtube'] },
     { id: 'eKsDG3bdM-E', title: 'Gameplay', cats: ['games'] },
+    { id: 'DrvUUCnNVHo', title: 'Compilado dos melhores momentos editados', cats: ['highlights', 'games'] },
+    { id: 'BPeeUh8YBbY', title: 'Batida no ritmo musical', cats: ['ritmo'] },
   ],
 
   // Seção Motion: só entram peças que existem de fato. Para incluir um
