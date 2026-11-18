@@ -1,0 +1,8 @@
+{
+  "name": "portfolio-tests",
+  "private": true,
+  "type": "module",
+  "description": "Apenas verificação local. O site não tem dependências em runtime.",
+  "scripts": { "test": "node --test site.test.mjs" },
+  "devDependencies": { "puppeteer-core": "^24.0.0" }
+}
