@@ -10,6 +10,8 @@
   const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const TAN = 0.57735;                                                       /* tan 30° → dx por dy de uma linha a 60° */
   const fine = () => matchMedia('(pointer: fine)').matches;
+  const I = window.I18N;                                                     /* idioma: números e textos do cursor acompanham a troca */
+  const fmtNum = (v, dec) => (I ? I.num(v, dec) : v.toFixed(dec).replace('.', ','));
 
   function init() {
     gsap.registerPlugin(ScrollTrigger, SplitText);
@@ -36,6 +38,7 @@
     const cutOpen = el => (el.offsetHeight / Math.max(1, el.offsetWidth)) * TAN * 100 + 100;
     const generic = $$('.reveal').filter(e => !e.matches('.sec-head, [data-cut]') && !e.closest('[data-cut]'));
     const heads = $$('.sec-head');
+    const splits = [];                                                      /* SplitText dos títulos: voltam ao texto simples quando o idioma muda */
     const cuts = $$('[data-cut]').filter(e => e !== media);
 
     gsap.set(heroSplit.chars, { yPercent: 110, xPercent: -60 });
@@ -46,7 +49,7 @@
     gsap.set(generic, { opacity: 0, y: 38 });
     heads.forEach(h => gsap.set($$('.sec-label, .sec-lead, .sec-num', h), { opacity: 0, y: 18 }));
     cuts.forEach(el => gsap.set(el, { clipPath: cutShape(el, 0) }));
-    $$('[data-countto]').filter(el => el.closest('[aria-hidden="true"]')).forEach(el => { el.dataset.final = el.textContent.trim(); el.textContent = (0).toFixed(+el.dataset.decimals || 0).replace('.', ','); });
+    $$('[data-countto]').filter(el => el.closest('[aria-hidden="true"]')).forEach(el => { el.dataset.final = el.textContent.trim(); el.textContent = fmtNum(0, +el.dataset.decimals || 0); });
 
     window.__moReady = true; api.ready = true; root.classList.add('mo-ready');   /* libera a página já com os estados definidos */
 
@@ -68,13 +71,15 @@
       const title = $('.sec-title', h);
       const meta = $$('.sec-label, .sec-lead, .sec-num', h);
       ScrollTrigger.create({ trigger: h, start: 'top 85%', once: true, onEnter: () => gsap.to(meta, { opacity: 1, y: 0, duration: 0.8, stagger: 0.08, ease: 'power3.out', clearProps: 'transform,opacity,visibility' }) });
-      if (title) SplitText.create(title, {
+      if (title) splits.push(SplitText.create(title, {
         type: 'lines', mask: 'lines', linesClass: 'line', autoSplit: true, aria: 'auto',
         onSplit: self => gsap.from(self.lines, { yPercent: 108, duration: 1, ease: 'expo.out', stagger: 0.09, clearProps: 'all', scrollTrigger: { trigger: title, start: 'top 90%', once: true } })
-      });
+      }));
     });
     const big = $('.contact-big');
-    if (big) SplitText.create(big, { type: 'lines', mask: 'lines', linesClass: 'line', autoSplit: true, aria: 'auto', onSplit: self => gsap.from(self.lines, { yPercent: 108, duration: 1, ease: 'expo.out', stagger: 0.1, clearProps: 'all', scrollTrigger: { trigger: big, start: 'top 88%', once: true } }) });
+    if (big) splits.push(SplitText.create(big, { type: 'lines', mask: 'lines', linesClass: 'line', autoSplit: true, aria: 'auto', onSplit: self => gsap.from(self.lines, { yPercent: 108, duration: 1, ease: 'expo.out', stagger: 0.1, clearProps: 'all', scrollTrigger: { trigger: big, start: 'top 88%', once: true } }) }));
+    /* antes de o texto mudar, desfaz a divisão em linhas (senão o SplitText restauraria o texto antigo); o título fica inteiro e visível */
+    if (I) I.onBeforeChange(() => { splits.forEach(sp => { try { sp.revert(); } catch (e) { /* já revertido */ } }); splits.length = 0; });
 
     /* ── blocos: entram em lote; fotos e painéis entram com o corte ── */
     ScrollTrigger.batch(generic, { start: 'top 90%', once: true, onEnter: els => gsap.to(els, { opacity: 1, y: 0, duration: 0.9, stagger: 0.09, ease: 'power3.out', clearProps: 'transform,opacity,visibility' }) });
@@ -83,7 +88,7 @@
     /* ── contadores com valor real ── */
     $$('[data-countto]').filter(el => el.closest('[aria-hidden="true"]')).forEach(el => {
       const to = parseFloat(el.dataset.countto), dec = +el.dataset.decimals || 0, o = { v: 0 };
-      ScrollTrigger.create({ trigger: el, start: 'top 92%', once: true, onEnter: () => gsap.to(o, { v: to, duration: 1.5, delay: 0.5, ease: 'power2.out', onUpdate: () => { el.textContent = o.v.toFixed(dec).replace('.', ','); }, onComplete: () => { el.textContent = el.dataset.final; } }) });
+      ScrollTrigger.create({ trigger: el, start: 'top 92%', once: true, onEnter: () => { el.setAttribute('data-counting', ''); gsap.to(o, { v: to, duration: 1.5, delay: 0.5, ease: 'power2.out', onUpdate: () => { el.textContent = fmtNum(o.v, dec); }, onComplete: () => { el.removeAttribute('data-counting'); el.textContent = el.dataset.final; } }); } });
     });
 
     /* ── reel acelera com a velocidade da rolagem ── */
@@ -113,7 +118,7 @@
     /* ── só com mouse: cursor-contexto e botões magnéticos ── */
     let cur = null, on = false, qx, qy;
     const ensure = () => {
-      cur = document.createElement('div'); cur.className = 'cursor'; cur.setAttribute('aria-hidden', 'true'); cur.textContent = 'VER'; document.body.append(cur);
+      cur = document.createElement('div'); cur.className = 'cursor'; cur.setAttribute('aria-hidden', 'true'); cur.textContent = I ? I.t('cursor.view') : 'VER'; document.body.append(cur);
       gsap.set(cur, { xPercent: -50, yPercent: -50, scale: 0.4, autoAlpha: 0 });
       qx = gsap.quickTo(cur, 'x', { duration: 0.35, ease: 'power3' }); qy = gsap.quickTo(cur, 'y', { duration: 0.35, ease: 'power3' });
       root.classList.add('has-cursor');
@@ -126,6 +131,7 @@
       show(!!e.target.closest('.yt-open') && !(modal && modal.open));
     }, { passive: true });
     root.addEventListener('mouseleave', () => cur && show(false));
+    if (I) I.onChange(() => { if (cur) cur.textContent = I.t('cursor.view'); });
     $$('.btn-primary, .cc.primary').forEach(el => {
       const mx = gsap.quickTo(el, 'x', { duration: 0.5, ease: 'power3' }), my = gsap.quickTo(el, 'y', { duration: 0.5, ease: 'power3' });
       el.addEventListener('pointermove', e => { if (e.pointerType !== 'mouse') return; const r = el.getBoundingClientRect(); mx((e.clientX - r.left - r.width / 2) * 0.22); my((e.clientY - r.top - r.height / 2) * 0.3); });

@@ -453,3 +453,52 @@ dialog#videoModal::backdrop { background: rgba(0, 0, 0, 0.9); }
 .tl-dock { transition: opacity 0.3s var(--ease), transform 0.3s var(--ease); }
 .tl-dock.is-away { opacity: 0; transform: translateY(100%); pointer-events: none; }
 @media (min-width: 1100px) { footer { padding-bottom: 0; } }
+
+/* ── SELETOR DE IDIOMA (assets/js/langswitch.js) ── */
+.nav-end { display: flex; align-items: center; gap: var(--s5); }
+.lang { position: relative; visibility: hidden; }                       /* só aparece quando o JS o ativa (sem JS não haveria o que clicar) */
+.has-lang .lang { visibility: visible; }
+.lang-btn { display: inline-flex; align-items: center; gap: var(--s2); min-height: 44px; min-width: 44px; padding: 0 var(--s3); border: 1px solid var(--line-2); border-radius: var(--radius); font-family: var(--f-mono); font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-2); transition: color 0.2s, border-color 0.2s; }
+.lang-btn:hover { color: var(--text); border-color: var(--text); }
+.lang.is-open .lang-btn { color: var(--text); border-color: var(--lime); }
+.lang-btn .i { width: 16px; height: 16px; }
+.lang-btn .lang-chev { width: 12px; height: 12px; transition: transform 0.2s var(--ease); }
+.lang.is-open .lang-chev { transform: rotate(180deg); }
+.lang.is-busy .lang-btn { opacity: 0.6; }
+.lang-menu { position: absolute; top: calc(100% + 8px); right: 0; z-index: 110; width: max-content; min-width: 250px; padding: var(--s2); background: #0a0a0a; border: 1px solid var(--line-2); border-radius: var(--radius); box-shadow: 0 18px 40px rgba(0, 0, 0, 0.55); }
+.lang-opt { display: flex; align-items: center; gap: var(--s3); width: 100%; min-height: 48px; padding: 0 var(--s3); text-align: left; border-radius: var(--radius); font-family: var(--f-mono); font-size: 0.78rem; letter-spacing: 0.04em; color: var(--text-2); transition: background 0.15s, color 0.15s; }
+.lang-opt:hover, .lang-opt:focus-visible { background: rgba(255, 255, 255, 0.07); color: var(--text); }
+.lang-opt:focus-visible { outline-offset: -2px; }
+.lang-opt[aria-checked='true'] { color: var(--text); }
+.lang-name { flex: 1; }
+.lang-flag { width: 20px; height: 14px; flex: none; border-radius: 2px; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2); }
+.lang-check { width: 16px; height: 16px; flex: none; color: var(--lime); stroke-width: 2.5; opacity: 0; }
+.lang-opt[aria-checked='true'] .lang-check { opacity: 1; }
+.lang-sep { height: 1px; margin: var(--s2) 0; background: var(--line); }
+.lang-auto { padding-left: calc(var(--s3) + 20px + var(--s3)); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; }
+.lang-auto[aria-checked='true'] { color: var(--lime); }
+.lang-auto[aria-checked='true']::after { content: '✓'; margin-left: auto; }
+.lang-note { margin: var(--s2) var(--s3) var(--s1); font-size: 0.8rem; line-height: 1.4; color: var(--text-2); }
+@media (max-width: 1100px) {
+  .nav-end { gap: var(--s2); }
+  .lang { order: -1; position: static; }                                  /* o menu ancora na barra do cabeçalho, não no botão */
+  .lang-btn { min-height: 48px; }
+  .lang-menu { top: calc(var(--nav-h) + 4px); right: var(--gutter); width: min(300px, calc(100vw - var(--gutter) * 2)); min-width: 0; }
+}
+@media (max-width: 480px) {
+  .nav .wrap { gap: var(--s3); }
+  .lang-btn { padding: 0 var(--s2); gap: 6px; }
+  .lang-btn .lang-chev { display: none; }
+}
+@media (max-width: 380px) {
+  .logo { font-size: 1.25rem; letter-spacing: 0.12em; gap: 8px; }
+  .logo-mark { width: 26px; height: 26px; }
+}
+@media (min-width: 1101px) and (max-width: 1279px) {                    /* cabe o seletor sem quebrar o cabeçalho: espaços e botão um pouco mais compactos */
+  .nav-end { gap: var(--s3); }
+  .nav-menu { gap: 14px; }
+  .nav-menu a { white-space: nowrap; letter-spacing: 0.1em; }
+  .nav .wrap { gap: var(--s4); }
+  .lang-btn { padding: 0 var(--s2); }
+  .lang-btn .lang-chev { display: none; }
+}

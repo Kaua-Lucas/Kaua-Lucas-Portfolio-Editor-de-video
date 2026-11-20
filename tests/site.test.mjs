@@ -6,6 +6,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 import puppeteer, { KnownDevices } from 'puppeteer-core';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -13,6 +14,8 @@ const FIX = JSON.parse(fs.readFileSync(path.join(ROOT, 'tests/fixtures/fiverr-re
 const CHROME = process.env.CHROME_PATH || '/usr/bin/google-chrome';
 const MIME = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.mjs': 'text/javascript', '.webm': 'video/webm', '.webp': 'image/webp', '.jpeg': 'image/jpeg', '.jpg': 'image/jpeg', '.png': 'image/png', '.svg': 'image/svg+xml', '.json': 'application/json', '.txt': 'text/plain', '.xml': 'application/xml' };
 
+const geoHandler = createRequire(import.meta.url)('../api/geo.js');   // a própria função da Vercel, executada aqui
+const geo = { country: 'BR', calls: 0 };                              // país "enviado pela hospedagem" (null = cabeçalho ausente → 404)
 let server, base, browser;
 const hits = []; // caminhos requisitados ao servidor local
 
@@ -20,6 +23,7 @@ before(async () => {
   server = http.createServer((req, res) => {
     const url = decodeURIComponent(req.url.split('?')[0]);
     hits.push(url);
+    if (url === '/api/geo') { geo.calls++; if (geo.country) req.headers['x-vercel-ip-country'] = geo.country; return geoHandler(req, res); }
     let f = path.join(ROOT, url === '/' ? 'index.html' : url);
     if (!f.startsWith(ROOT) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) { res.writeHead(404); return res.end('404'); }
     const size = fs.statSync(f).size, type = MIME[path.extname(f)] || 'application/octet-stream';
@@ -691,4 +695,375 @@ test('ScrollTrigger acompanha mudanças de altura: após filtrar o YouTube os bl
   const op = await page.evaluate(() => [...document.querySelectorAll('#especialidades .reveal')].map(e => +getComputedStyle(e).opacity));
   assert.ok(op.length > 0 && op.every(o => o > 0.95), 'blocos continuam transparentes: ' + op.join(','));
   await page.close();
+});
+
+/* ══ i18n — troca de idioma, detecção por país, persistência, seletor ══════════════════════ */
+import vm from 'node:vm';
+import os from 'node:os';
+
+const LANGS = ['pt-BR', 'en', 'es'];
+const HTMLTXT = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+function loadDict(code) {                         // executa o arquivo do dicionário como o navegador faria
+  const q = []; const sb = { self: { __i18nQ: q } }; vm.createContext(sb);
+  vm.runInContext(fs.readFileSync(path.join(ROOT, 'assets/js/i18n', code + '.js'), 'utf8'), sb);
+  const flat = {}; const walk = (n, p) => { if (typeof n === 'string') flat[p] = n; else if (Array.isArray(n)) n.forEach((v, i) => walk(v, p + '.' + i)); else for (const k of Object.keys(n)) walk(n[k], p ? p + '.' + k : k); };
+  walk(q[0][1], ''); return flat;
+}
+const DICT = Object.fromEntries(LANGS.map(c => [c, loadDict(c)]));
+
+/** Página isolada (armazenamento limpo). geoCountry: país que a "hospedagem" informa (null = sem cabeçalho → 404). */
+async function openFresh({ geoCountry = 'BR', navLangs = ['pt-BR', 'pt'], stored, width = 1440, height = 900, reduce = true, third, block = [] } = {}) {
+  geo.country = geoCountry; geo.calls = 0;
+  const ctx = await browser.createBrowserContext(); const page = await ctx.newPage();
+  await page.setViewport({ width, height });
+  if (reduce) await page.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }]);
+  await page.evaluateOnNewDocument((langs, st) => {
+    Object.defineProperty(navigator, 'languages', { get: () => langs }); Object.defineProperty(navigator, 'language', { get: () => langs[0] });
+    if (st && !sessionStorage.getItem('__seeded')) { sessionStorage.setItem('__seeded', '1'); localStorage.setItem('kl.lang', JSON.stringify(st)); }
+  }, navLangs, stored || null);
+  const problems = []; const thirdCalls = [];
+  page.on('pageerror', e => problems.push('pageerror: ' + e.message));
+  await page.setRequestInterception(true);
+  page.on('request', r => {
+    const u = r.url();
+    if (/api\.country\.is/.test(u)) { thirdCalls.push(u); return third ? r.respond({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ ip: '203.0.113.9', country: third }) }) : r.abort(); }
+    if (block.some(b => u.includes(b))) return r.abort();
+    r.continue();
+  });
+  await page.goto(base + '/', { waitUntil: 'domcontentloaded' });
+  return { page, ctx, problems, thirdCalls, close: () => ctx.close() };
+}
+const settled = (page, locale) => page.waitForFunction(l => document.documentElement.lang === l && !!window.I18N, { timeout: 6000 }, locale);
+const LOCALE = { 'pt-BR': 'pt-BR', en: 'en-US', es: 'es-ES' };
+const stored = page => page.evaluate(() => JSON.parse(localStorage.getItem('kl.lang') || 'null'));
+const heroLead = page => page.$eval('.hero-lead', e => e.textContent.trim());
+
+test('i18n: os 3 dicionários têm exatamente as mesmas chaves, nenhum vazio e os mesmos {parâmetros}', () => {
+  const ref = DICT['pt-BR'], keys = Object.keys(ref).sort();
+  assert.ok(keys.length > 250, 'poucas chaves: ' + keys.length);
+  for (const c of ['en', 'es']) {
+    assert.deepEqual(Object.keys(DICT[c]).sort().filter(k => !keys.includes(k)), [], c + ': chaves a mais');
+    assert.deepEqual(keys.filter(k => !(k in DICT[c])), [], c + ': chaves faltando');
+    for (const k of keys) {
+      assert.ok(String(DICT[c][k]).trim() !== '', `${c}.${k} vazio`);
+      const ph = s => (String(s).match(/\{\w+\}/g) || []).sort().join();
+      assert.equal(ph(DICT[c][k]), ph(ref[k]), `${c}.${k}: parâmetros diferentes`);
+    }
+  }
+});
+
+test('i18n: toda chave usada no HTML existe, e o português do HTML é idêntico ao dicionário', async () => {
+  const used = new Set(); for (const m of HTMLTXT.matchAll(/data-i18n(?:-html)?="([^"]+)"/g)) used.add(m[1]);
+  for (const m of HTMLTXT.matchAll(/data-i18n-attr="([^"]+)"/g)) m[1].trim().split(/\s+/).forEach(p => used.add(p.slice(p.indexOf(':') + 1)));
+  assert.ok(used.size > 150, 'poucas chaves no HTML: ' + used.size);
+  assert.deepEqual([...used].filter(k => !(k in DICT['pt-BR'])), [], 'chaves do HTML sem tradução');
+  const { page, close } = await openFresh({ geoCountry: 'BR' }); await new Promise(r => setTimeout(r, 700));   // sem movimento: nada anima durante a comparação
+  const diff = await page.evaluate(() => {
+    const snap = () => { const o = []; const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT); while (w.nextNode()) { const n = w.currentNode; if (!n.parentElement.closest('script,style,noscript') && n.textContent.trim()) o.push(n.textContent.trim()); }
+      document.querySelectorAll('[aria-label],[alt]').forEach(e => o.push((e.getAttribute('aria-label') || '') + '|' + (e.getAttribute('alt') || ''))); o.push(document.title, ...[...document.querySelectorAll('meta[content]')].map(m => m.content)); return o; };
+    const a = snap(); I18N.apply(document); const b = snap();
+    return a.map((t, i) => (t === b[i] ? null : [t, b[i]])).filter(Boolean).concat(a.length === b.length ? [] : [['tamanho', a.length + '≠' + b.length]]);
+  });
+  assert.deepEqual(diff, [], 'aplicar o dicionário pt-BR mudou o texto do HTML (o HTML e pt-BR.js divergiram)');
+  await close();
+});
+
+test('i18n: função /api/geo devolve o país do cabeçalho da hospedagem e recusa o resto', () => {
+  const call = h => { const r = { headers: {}, statusCode: 0, body: '', setHeader(k, v) { this.headers[k] = v; }, end(b) { this.body = b; } }; geoHandler({ headers: h }, r); return r; };
+  const ok = call({ 'x-vercel-ip-country': 'es' });
+  assert.equal(ok.statusCode, 200); assert.deepEqual(JSON.parse(ok.body), { country: 'ES' }); assert.match(ok.headers['Cache-Control'], /no-store/); assert.match(ok.headers['Content-Type'], /json/);
+  assert.equal(call({}).statusCode, 404); assert.equal(call({ 'x-vercel-ip-country': 'XXX' }).statusCode, 404); assert.equal(call({ 'x-vercel-ip-country': '<b>' }).statusCode, 404);
+});
+
+test('i18n: nunca pede GPS (sem navigator.geolocation; política de permissões bloqueia)', () => {
+  for (const f of fs.readdirSync(path.join(ROOT, 'assets/js')).filter(n => n.endsWith('.js'))) assert.ok(!/navigator\.geolocation|getCurrentPosition|watchPosition/.test(fs.readFileSync(path.join(ROOT, 'assets/js', f), 'utf8')), f);
+  assert.match(fs.readFileSync(path.join(ROOT, 'vercel.json'), 'utf8'), /geolocation=\(\)/);
+});
+
+for (const [country, want] of [['BR', 'pt-BR'], ['PT', 'pt-BR'], ['US', 'en'], ['GB', 'en'], ['ES', 'es'], ['MX', 'es'], ['AR', 'es'], ['JP', 'en'], ['DE', 'en']]) {
+  test(`detecção: 1º acesso em ${country} → ${want}, salva a preferência (automática) e não pede GPS`, async () => {
+    const s = await openFresh({ geoCountry: country, navLangs: ['fr-FR'] });   // idioma do navegador não deve influenciar quando o país é conhecido
+    await settled(s.page, LOCALE[want]);
+    assert.deepEqual(await stored(s.page), { lang: want, source: 'auto' });
+    assert.equal(geo.calls, 1); assert.deepEqual(s.thirdCalls, [], 'terceiros consultados sem necessidade');
+    assert.equal(await s.page.evaluate(() => I18N.t('nav.work')), DICT[want]['nav.work']);
+    assert.deepEqual(s.problems, []); await s.close();
+  });
+}
+
+test('detecção: sem o cabeçalho da hospedagem usa a reserva (api.country.is), sem enviar Referer nem cookies', async () => {
+  const s = await openFresh({ geoCountry: null, third: 'ES', navLangs: ['en-US'] });
+  await settled(s.page, 'es-ES'); assert.equal(geo.calls, 1); assert.equal(s.thirdCalls.length, 1);
+  assert.deepEqual(await stored(s.page), { lang: 'es', source: 'auto' }); await s.close();
+});
+
+test('detecção: se a geolocalização falha por completo, o site abre normal no idioma do navegador (e não insiste)', async () => {
+  const s = await openFresh({ geoCountry: null, navLangs: ['es-MX', 'es'] });
+  await settled(s.page, 'es-ES'); assert.equal(geo.calls, 1);
+  assert.equal(await stored(s.page), null, 'idioma do navegador não deve virar preferência salva');
+  assert.deepEqual(s.problems, []);
+  const fail = await s.page.evaluate(() => JSON.parse(localStorage.getItem('kl.geo')));
+  assert.ok(fail && fail.fail === true);
+  await s.page.reload({ waitUntil: 'domcontentloaded' }); await settled(s.page, 'es-ES');
+  assert.equal(geo.calls, 1, 'consultou de novo logo após a falha'); assert.equal(s.thirdCalls.length, 1);
+  await s.close();
+  const f = await openFresh({ geoCountry: null, navLangs: ['fr-FR'] });          // sem tradução para o idioma do navegador → inglês
+  await settled(f.page, 'en-US'); await f.close();
+  const p = await openFresh({ geoCountry: null, navLangs: ['pt-BR'] }); await new Promise(r => setTimeout(r, 800));
+  assert.equal(await p.page.evaluate(() => document.documentElement.lang), 'pt-BR'); assert.deepEqual(p.problems, []); await p.close();
+});
+
+test('detecção: o país é guardado (24 h) — a "detecção automática" não repete a consulta', async () => {
+  const s = await openFresh({ geoCountry: 'US' });
+  await settled(s.page, 'en-US'); assert.equal(geo.calls, 1);
+  const g = await s.page.evaluate(() => JSON.parse(localStorage.getItem('kl.geo'))); assert.equal(g.country, 'US');
+  await s.page.evaluate(() => I18N.set('pt-BR')); await settled(s.page, 'pt-BR');
+  geo.country = 'ES';                                                          // mudou de país, mas o cache ainda vale
+  await s.page.evaluate(() => I18N.auto()); await settled(s.page, 'en-US'); assert.equal(geo.calls, 1);
+  await s.close();
+});
+
+test('preferência salva manda sobre a detecção e não consulta a geolocalização', async () => {
+  const s = await openFresh({ geoCountry: 'US', stored: { lang: 'pt-BR', source: 'manual' }, navLangs: ['en-US'] });
+  await new Promise(r => setTimeout(r, 900));
+  assert.equal(await s.page.evaluate(() => document.documentElement.lang), 'pt-BR'); assert.equal(geo.calls, 0); assert.deepEqual(s.thirdCalls, []);
+  await s.close();
+  const e = await openFresh({ geoCountry: 'BR', stored: { lang: 'es', source: 'manual' } });
+  await settled(e.page, 'es-ES'); assert.equal(geo.calls, 0);
+  assert.equal(await heroLead(e.page), DICT.es['hero.lead'].replace(/<\/?b>/g, ''));
+  await e.close();
+});
+
+test('preferência salva inválida ou corrompida não quebra: volta à detecção', async () => {
+  for (const bad of [{ lang: 'xx', source: 'manual' }, 'lixo']) {
+    const s = await openFresh({ geoCountry: 'US', stored: bad });
+    await settled(s.page, 'en-US'); assert.deepEqual(s.problems, []); await s.close();
+  }
+});
+
+test('seletor (desktop): globo + sigla, abre menu com 3 idiomas, troca na hora sem recarregar e salva', async () => {
+  const s = await openFresh({ geoCountry: 'BR' }); const { page } = s;
+  await page.waitForFunction(() => document.documentElement.classList.contains('has-lang'));
+  await page.evaluate(() => { window.__noReload = true; });
+  const btn = await page.$('#langBtn');
+  const info = await page.evaluate(() => { const b = document.getElementById('langBtn'); const r = b.getBoundingClientRect(); return { svg: !!b.querySelector('svg circle'), code: b.querySelector('.lang-code').textContent, aria: b.getAttribute('aria-label'), exp: b.getAttribute('aria-expanded'), h: r.height }; });
+  assert.ok(info.svg); assert.equal(info.code, 'PT'); assert.equal(info.aria, 'PT — Idioma. Atual: Português (Brasil)'); assert.equal(info.exp, 'false'); assert.ok(info.h >= 44);
+  await btn.click();
+  const menu = await page.evaluate(() => { const m = document.getElementById('langMenu'); const o = [...m.querySelectorAll('[data-lang]')]; return { hidden: m.hidden, exp: document.getElementById('langBtn').getAttribute('aria-expanded'), names: o.map(x => x.textContent.trim()), checked: o.map(x => x.getAttribute('aria-checked')), langs: o.map(x => x.lang), flags: m.querySelectorAll('.lang-flag').length, focus: document.activeElement.dataset.lang }; });
+  assert.equal(menu.hidden, false); assert.equal(menu.exp, 'true'); assert.deepEqual(menu.names, ['Português (Brasil)', 'English (United States)', 'Español (España)']);
+  assert.deepEqual(menu.checked, ['true', 'false', 'false']); assert.deepEqual(menu.langs, ['pt-BR', 'en', 'es']); assert.equal(menu.flags, 3); assert.equal(menu.focus, 'pt-BR');
+  await page.click('#langMenu [data-lang="en"]');
+  await settled(page, 'en-US');
+  const r = await page.evaluate(() => ({ lead: document.querySelector('.hero-lead').textContent, code: document.getElementById('langCode').textContent, open: !document.getElementById('langMenu').hidden, focus: document.activeElement.id, noReload: window.__noReload === true, title: document.title, nav: document.querySelector('#navMenu a').textContent, desc: document.querySelector('meta[name=description]').content, og: document.querySelector('meta[property="og:locale"]').content, live: document.getElementById('i18nLive')?.textContent }));
+  assert.equal(r.code, 'EN'); assert.equal(r.open, false); assert.equal(r.focus, 'langBtn', 'foco deve voltar ao botão'); assert.ok(r.noReload, 'a página recarregou');
+  assert.equal(r.lead, DICT.en['hero.lead'].replace(/<\/?b>/g, '')); assert.equal(r.title, DICT.en['meta.title']); assert.equal(r.nav, 'Work'); assert.equal(r.desc, DICT.en['meta.description']); assert.equal(r.og, 'en_US');
+  assert.deepEqual(await stored(page), { lang: 'en', source: 'manual' });
+  await page.waitForFunction(() => /English/.test(document.getElementById('i18nLive')?.textContent || ''));
+  await page.click('#langBtn'); assert.equal(await page.$eval('#langMenu [data-lang="en"]', e => e.getAttribute('aria-checked')), 'true'); assert.equal(await page.$eval('.lang-auto', e => e.getAttribute('aria-checked')), 'false');
+  assert.deepEqual(s.problems, []); await s.close();
+});
+
+test('seletor: teclado (setas, Enter, Home/End, Esc, Tab) e clique fora', async () => {
+  const s = await openFresh({ geoCountry: 'BR' }); const { page } = s;
+  await page.waitForFunction(() => document.documentElement.classList.contains('has-lang'));
+  await page.focus('#langBtn'); await page.keyboard.press('ArrowDown');
+  assert.equal(await page.$eval('#langMenu', m => m.hidden), false);
+  await page.keyboard.press('ArrowDown'); assert.equal(await page.evaluate(() => document.activeElement.dataset.lang), 'en');
+  await page.keyboard.press('End'); assert.equal(await page.evaluate(() => document.activeElement.hasAttribute('data-auto')), true);
+  await page.keyboard.press('Home'); assert.equal(await page.evaluate(() => document.activeElement.dataset.lang), 'pt-BR');
+  await page.keyboard.press('ArrowUp'); assert.equal(await page.evaluate(() => document.activeElement.hasAttribute('data-auto')), true, 'ArrowUp deve dar a volta');
+  await page.keyboard.press('Escape');
+  assert.equal(await page.$eval('#langMenu', m => m.hidden), true); assert.equal(await page.evaluate(() => document.activeElement.id), 'langBtn');
+  await page.keyboard.press('Enter'); await page.keyboard.press('ArrowDown'); await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter');
+  await settled(page, 'es-ES'); assert.equal(await page.evaluate(() => document.activeElement.id), 'langBtn');
+  await page.click('#langBtn'); await page.mouse.click(300, 600);
+  assert.equal(await page.$eval('#langMenu', m => m.hidden), true, 'clique fora não fechou');
+  await page.click('#langBtn'); await page.keyboard.press('Tab');
+  assert.equal(await page.$eval('#langMenu', m => m.hidden), true, 'Tab não fechou');
+  await s.close();
+});
+
+test('seletor: "Detectar automaticamente" descarta a escolha manual e usa o país atual', async () => {
+  const s = await openFresh({ geoCountry: 'US', stored: { lang: 'es', source: 'manual' } }); const { page } = s;
+  await settled(page, 'es-ES'); assert.equal(geo.calls, 0);
+  await page.click('#langBtn'); assert.match(await page.$eval('.lang-auto', e => e.textContent), /Detectar automáticamente/);
+  await page.click('.lang-auto'); await settled(page, 'en-US'); assert.equal(geo.calls, 1);
+  assert.deepEqual(await stored(page), { lang: 'en', source: 'auto' });
+  await page.click('#langBtn'); assert.equal(await page.$eval('.lang-auto', e => e.getAttribute('aria-checked')), 'true'); await s.close();
+});
+
+test('persistência: a escolha manual sobrevive a recarregar, a abas novas e a FECHAR o navegador', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kl-prof-'));
+  const launch = () => puppeteer.launch({ executablePath: CHROME, headless: 'new', userDataDir: dir, args: ['--no-sandbox', '--disable-dev-shm-usage', '--mute-audio'] });
+  geo.country = 'BR'; geo.calls = 0;
+  let b = await launch(); let p = await b.newPage(); await p.goto(base + '/', { waitUntil: 'domcontentloaded' });
+  await p.waitForFunction(() => document.documentElement.classList.contains('has-lang'));
+  await p.click('#langBtn'); await p.click('#langMenu [data-lang="es"]'); await settled(p, 'es-ES');
+  await p.reload({ waitUntil: 'domcontentloaded' }); await settled(p, 'es-ES');
+  const p2 = await b.newPage(); await p2.goto(base + '/', { waitUntil: 'domcontentloaded' }); await settled(p2, 'es-ES');
+  await b.close();                                                             // fecha o navegador de verdade
+  geo.country = 'US'; geo.calls = 0;                                          // e a "hospedagem" agora diria que está nos EUA
+  b = await launch(); p = await b.newPage(); await p.goto(base + '/', { waitUntil: 'domcontentloaded' });
+  await settled(p, 'es-ES'); assert.equal(await p.evaluate(() => document.querySelector('#navMenu a').textContent), 'Trabajos');
+  assert.equal(geo.calls, 0, 'consultou a geolocalização com preferência salva');
+  assert.deepEqual(await stored(p), { lang: 'es', source: 'manual' });
+  await b.close(); fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('tradução completa: nenhum texto em português sobra em inglês e espanhol (menu, serviços, processo, formulários, rodapé…)', async () => {
+  const s = await openFresh({ geoCountry: 'BR' }); const { page } = s; await settled(page, 'pt-BR');
+  await page.evaluate(() => document.getElementById('resultado').scrollIntoView());
+  const collect = () => page.evaluate(() => {
+    const out = new Map(); const add = (t, why) => { t = t.replace(/\s+/g, ' ').trim(); if (t) out.set(t, why); };
+    const skip = n => n.closest('script, style, noscript, .yt-title, blockquote, .review figcaption, [lang="en"]:not(html), svg');
+    const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT); while (w.nextNode()) { const n = w.currentNode; if (!skip(n.parentElement)) add(n.textContent, n.parentElement.className || n.parentElement.tagName); }
+    document.querySelectorAll('[aria-label], [alt], [title]').forEach(e => { if (!e.closest('.yt-open')) ['aria-label', 'alt', 'title'].forEach(a => e.hasAttribute(a) && add(e.getAttribute(a), a)); });
+    document.querySelectorAll('.yt-open').forEach(e => add(e.getAttribute('aria-label').replace(e.dataset.ytitle, ''), 'yt'));
+    ['meta[name=description]', 'meta[property="og:title"]', 'meta[property="og:description"]', 'meta[property="og:image:alt"]'].forEach(q => add(document.querySelector(q).content, q)); add(document.title, 'title');
+    add(document.getElementById('procPanel').getAttribute('aria-label') || '', 'x');
+    return [...out.keys()];
+  });
+  const pt = await collect(); assert.ok(pt.length > 150, 'coleta pequena: ' + pt.length);
+  const SAME = /^[\d\s:.,%·–\-+★↗→‹›↑«»©()|/]*$|^(KAUÃ|LUCAS|Fiverr|YouTube|Fiverr ↗|Discord|Instagram|@editordevideo\.kaua|esmaaisk|V2|V1|TX|CC|A1|A2|Motion|Motion design|Motion design\.\.\.|Premium|US\$|B-rolls|overlays|storytelling|Kauã Lucas|BR|Filmcraft, EffectCraft.*)$|^\d+ ?[A-Z]{2}$/;
+  // O que ficou igual ao português é legítimo quando é nome de idioma (cada um no seu) ou palavra que a língua alvo também usa.
+  // Texto fixo no HTML/JS (sem chave) apareceria IGUAL nos três idiomas: por isso a interseção pt ∩ en ∩ es tem de ser vazia.
+  const ENDONYMS = ['Português (Brasil)', 'English (United States)', 'Español (España)'];
+  const EN_OK = new Set([...ENDONYMS, 'Stream highlights', 'Games', 'Highlights', 'sound design', 'Menu']);   // revisadas uma a uma: são inglês de verdade
+  const sets = {};
+  for (const code of ['en', 'es']) {
+    await page.evaluate(c => I18N.set(c), code); await settled(page, LOCALE[code]); await new Promise(r => setTimeout(r, 250));
+    sets[code] = new Set(await collect());
+    await page.evaluate(c => I18N.set(c), 'pt-BR'); await settled(page, 'pt-BR');
+  }
+  const keep = t => !SAME.test(t) && !ENDONYMS.includes(t);
+  assert.deepEqual(pt.filter(t => sets.en.has(t) && keep(t) && !EN_OK.has(t)), [], 'en: textos que continuam em português');
+  assert.deepEqual(pt.filter(t => sets.en.has(t) && sets.es.has(t) && keep(t) && t !== 'Highlights'), [], 'texto fixo, sem tradução, nos 3 idiomas');
+  assert.ok(sets.es.has('CINCO FORMATOS,') && sets.es.has('UN CRITERIO') && sets.en.has('FIVE FORMATS,'), 'a coleta não está lendo os textos traduzidos');
+  await s.close();
+});
+
+test('tradução dinâmica: reel, filtros, YouTube, processo, avaliações, planos, contador e Discord acompanham o idioma', async () => {
+  const s = await openFresh({ geoCountry: 'BR' }); const { page } = s; await settled(page, 'pt-BR');
+  await page.evaluate(() => I18N.set('en')); await settled(page, 'en-US');
+  const r = await page.evaluate(() => ({
+    reelTitle: document.querySelector('#trabalhos .work-title').textContent, reelTag: document.querySelector('#trabalhos .tag-main').textContent,
+    chips: [...document.querySelectorAll('#chips .chip')].map(c => c.textContent), more: document.getElementById('ytMore').textContent, status: document.getElementById('chipStatus').textContent,
+    watch: document.querySelector('.yt-open').getAttribute('aria-label'), ytTitle: document.querySelector('.yt-title').textContent,
+    motion: document.querySelector('#motionGrid h3').textContent, step: document.getElementById('procTitle').textContent, tab: document.querySelector('#procTabs [role=tab] span').textContent,
+    seg: document.querySelector('#lV1 .tl-keep').textContent, play: document.getElementById('procPlay').textContent,
+    rating: document.querySelector('[data-rating] strong').textContent, ratingNum: document.querySelector('.rating-num').textContent, heroNum: document.querySelector('.hero-proof b').textContent, heroProof: document.querySelector('.hero-proof').textContent.replace(/\s+/g, ' '),
+    revMore: document.getElementById('reviewMore').textContent, date: document.getElementById('ratingDate').textContent, via: document.querySelector('.review figcaption span:last-child').textContent, score: document.querySelector('.review-score .sr-only').textContent,
+    plan: document.querySelector('.plan h3').textContent, planLen: document.querySelector('.plan-len').textContent, price: document.querySelector('.plan-price').textContent.replace(/\s+/g, ''), spec: document.querySelector('.spec-tags li').textContent,
+    stars: document.querySelector('.rating-num').dataset.final,
+  }));
+  assert.equal(r.reelTitle, DICT.en['works.conde']); assert.equal(r.reelTag, 'Games'); assert.equal(r.chips[0], 'All'); assert.match(r.more, /See all 17 videos/); assert.match(r.status, /Showing 6 YouTube videos\./);
+  assert.match(r.watch, /^Watch on YouTube: /); assert.equal(r.ytTitle, 'Venda de imóveis', 'título real do YouTube não se traduz');
+  assert.equal(r.motion, DICT.en['motion.conde.title']); assert.equal(r.step, DICT.en['process.steps.organize.title']); assert.equal(r.tab, DICT.en['process.steps.organize.tab']); assert.equal(r.seg, 'clip 1'); assert.equal(r.play, 'Watch the demo');
+  assert.equal(r.rating, 'Rated 4.7 from 18 reviews'); assert.equal(r.ratingNum, '4.7'); assert.equal(r.heroNum, '4.7'); assert.match(r.heroProof, /★ 4\.7 from 18 reviews on Fiverr/);
+  assert.match(r.revMore, /See all 18 reviews/); assert.equal(r.date, 'Fiverr data checked on November 14, 2026.'); assert.equal(r.via, 'via Fiverr'); assert.match(r.score, /^Rated \d(\.\d)? out of 5$/);
+  assert.equal(r.plan, 'Basic'); assert.equal(r.planLen, 'Video up to 30 min'); assert.equal(r.price, 'US$20'); assert.equal(r.spec, 'dynamic cuts');
+  await page.evaluate(() => I18N.set('es')); await settled(page, 'es-ES');
+  assert.equal(await page.$eval('.rating-num', e => e.textContent), '4,7'); assert.equal(await page.$eval('#ratingDate', e => e.textContent), 'Datos de Fiverr comprobados el 14 de noviembre de 2026.');
+  assert.equal(await page.$eval('.plan h3', e => e.textContent), 'Básico');
+  // as avaliações são texto do cliente: idênticas ao Fiverr em qualquer idioma, com o idioma original marcado
+  const got = await page.evaluate(() => [...document.querySelectorAll('#avaliacoes .review')].map(x => ({ text: x.querySelector('blockquote').textContent.trim(), lang: x.querySelector('blockquote').lang })));
+  assert.deepEqual(got.map(g => g.text), FIX.reviews.map(f => f.text));
+  const orig = await page.evaluate(() => window.FIVERR.reviews.map(r => r.lang));
+  assert.ok(orig.includes('en') && orig.includes('pt'), 'reviews.js sem os dois idiomas');
+  assert.deepEqual(got.map(g => g.lang), orig.map(l => l === 'en' ? 'en' : 'pt-BR'));
+  assert.deepEqual(s.problems, []); await s.close();
+});
+
+test('troca de idioma preserva o estado: filtro do YouTube, "ver todas", etapa do processo e demonstração', async () => {
+  const s = await openFresh({ geoCountry: 'BR' }); const { page } = s; await settled(page, 'pt-BR');
+  await page.$eval('#resultado', e => e.scrollIntoView()); await page.click('#chips .chip[data-id="games"]');
+  await page.click('#reviewMore'); await page.$eval('#procStage', e => e.scrollIntoView({ block: 'center' })); await new Promise(r => setTimeout(r, 500)); await page.click('#procTabs [role=tab]:nth-child(4)'); await page.click('#procPlay');
+  const before = await page.evaluate(() => ({ chip: document.querySelector('#chips .chip[aria-pressed=true]').dataset.id, yt: [...document.querySelectorAll('.yt-card')].filter(c => !c.hidden).length, rev: [...document.querySelectorAll('.review')].filter(c => !c.hidden).length, tab: document.querySelector('#procTabs [aria-selected=true]').id, pressed: document.getElementById('procPlay').getAttribute('aria-pressed') }));
+  assert.equal(before.pressed, 'true'); assert.equal(before.rev, 18);
+  await page.evaluate(() => I18N.set('en')); await settled(page, 'en-US');
+  const after = await page.evaluate(() => ({ chip: document.querySelector('#chips .chip[aria-pressed=true]').dataset.id, yt: [...document.querySelectorAll('.yt-card')].filter(c => !c.hidden).length, rev: [...document.querySelectorAll('.review')].filter(c => !c.hidden).length, tab: document.querySelector('#procTabs [aria-selected=true]').id, pressed: document.getElementById('procPlay').getAttribute('aria-pressed'), playText: document.getElementById('procPlay').textContent, more: document.getElementById('reviewMore').textContent }));
+  assert.deepEqual({ ...after, playText: 0, more: 0 }, { ...before, playText: 0, more: 0 }); assert.equal(after.playText, 'Pause'); assert.equal(after.more, 'See less');
+  await s.close();
+});
+
+test('movimento ligado: trocar de idioma mantém títulos animados legíveis, contador e cursor corretos e sem erros', async () => {
+  const s = await openFresh({ geoCountry: 'BR', reduce: false }); const { page } = s; await settled(page, 'pt-BR'); await mo(page);
+  await page.evaluate(async () => { for (let y = 0; y < document.body.scrollHeight; y += 600) { scrollTo(0, y); await new Promise(r => setTimeout(r, 90)); } scrollTo(0, 0); });
+  await page.evaluate(() => I18N.set('en')); await settled(page, 'en-US'); await new Promise(r => setTimeout(r, 1500));
+  const r = await page.evaluate(() => ({ titles: [...document.querySelectorAll('.sec-title, .contact-big')].map(h => ({ t: h.textContent.replace(/\s+/g, ' ').trim(), op: getComputedStyle(h).opacity, lines: h.querySelectorAll('[class*=line]').length })), h1: document.querySelector('h1').textContent.replace(/\s+/g, ' '), mo: document.documentElement.classList.contains('mo-ready') }));
+  assert.ok(r.mo); assert.match(r.h1, /KAUÃ\s*LUCAS/);
+  assert.equal(r.titles[0].t, 'EDITING REEL'); assert.equal(r.titles[1].t, 'SEE THE RESULT'); assert.equal(r.titles.at(-1).t, "READY TO EDIT YOUR NEXT VIDEO?");
+  assert.ok(r.titles.slice(0, -1).every(t => t.op === '1'), 'título transparente depois da troca');
+  await page.$eval('#contato', e => e.scrollIntoView({ block: 'center' })); await new Promise(r => setTimeout(r, 2200));
+  assert.equal(await page.$eval('.contact-big', e => getComputedStyle(e).opacity), '1', 'título do contato não apareceu ao chegar nele');
+  await page.$eval('#avaliacoes .rating-box', e => e.scrollIntoView({ block: 'center' })); await new Promise(r => setTimeout(r, 2600));
+  assert.equal(await page.$eval('#avaliacoes .rating-num', e => e.textContent.trim()), '4.7');
+  await page.evaluate(() => I18N.set('es')); await settled(page, 'es-ES');
+  assert.equal(await page.$eval('#avaliacoes .rating-num', e => e.textContent.trim()), '4,7');
+  const card = await page.$('#resultado .yt-card:not([hidden]) .yt-open'); await card.evaluate(e => e.scrollIntoView({ block: 'center' })); await new Promise(r => setTimeout(r, 1800)); const b = await card.boundingBox();
+  await page.mouse.move(b.x + 20, Math.max(b.y + 40, 40)); await page.mouse.move(b.x + b.width / 2, b.y + b.height / 3, { steps: 6 });
+  assert.equal(await page.$eval('.cursor', c => c.textContent.trim()), 'VER');
+  await page.evaluate(() => I18N.set('en')); await settled(page, 'en-US'); assert.equal(await page.$eval('.cursor', c => c.textContent.trim()), 'VIEW');
+  assert.deepEqual(s.problems, []); await s.close();
+});
+
+test('falha ao carregar um idioma: continua no atual, avisa no menu, sem erro de página e sem salvar', async () => {
+  const s = await openFresh({ geoCountry: 'BR', block: ['/i18n/en.js'] }); const { page } = s; await settled(page, 'pt-BR');
+  await page.click('#langBtn'); await page.click('#langMenu [data-lang="en"]');
+  await page.waitForFunction(() => !document.getElementById('langNote').hidden, { timeout: 5000 });
+  assert.match(await page.$eval('#langNote', e => e.textContent), /Não foi possível carregar o idioma/);
+  assert.equal(await page.evaluate(() => document.documentElement.lang), 'pt-BR'); assert.equal((await stored(page)).source, 'auto'); assert.equal((await stored(page)).lang, 'pt-BR');
+  assert.equal(await page.$eval('#langMenu', m => m.hidden), false);
+  assert.deepEqual(s.problems, []); await s.close();
+});
+
+test('escolhas rápidas em sequência: vence a última', async () => {
+  const s = await openFresh({ geoCountry: 'BR' }); const { page } = s; await settled(page, 'pt-BR');
+  await page.evaluate(() => { I18N.set('en'); I18N.set('es'); I18N.set('en'); I18N.set('es'); }); await settled(page, 'es-ES');
+  await new Promise(r => setTimeout(r, 400)); assert.equal(await page.evaluate(() => I18N.lang), 'es'); assert.deepEqual(await stored(page), { lang: 'es', source: 'manual' }); await s.close();
+});
+
+test('idioma salvo ≠ português: carrega já traduzido (dicionário pedido no head) e sem erros', async () => {
+  const s = await openFresh({ geoCountry: 'BR', stored: { lang: 'en', source: 'manual' }, reduce: false }); const { page } = s;
+  await settled(page, 'en-US'); await mo(page);
+  assert.equal(await page.$eval('.hero-lead', e => e.textContent.trim()), DICT.en['hero.lead'].replace(/<\/?b>/g, ''));
+  assert.equal(await page.$eval('#trabalhos .work-title', e => e.textContent), DICT.en['works.conde']);
+  assert.equal(await page.$eval('#chips .chip', e => e.textContent), 'All'); assert.deepEqual(s.problems, []); await s.close();
+});
+
+test('seletor no celular: cabe no cabeçalho em 320/375/390 px, alvo ≥ 44px, menu dentro da tela e convive com o menu hambúrguer', async () => {
+  for (const w of [320, 375, 390, 768, 1024, 1100]) {
+    const s = await openFresh({ geoCountry: 'BR', width: w, height: 800 }); const { page } = s;
+    await page.waitForFunction(() => document.documentElement.classList.contains('has-lang'));
+    const m = await page.evaluate(() => { const R = e => { const r = e.getBoundingClientRect(); return { left: r.left, right: r.right, width: r.width, height: r.height }; }; const b = R(document.getElementById('langBtn')), t = R(document.getElementById('navToggle')), l = R(document.querySelector('.logo')); return { vw: innerWidth, b, t, l }; });
+    assert.ok(m.b.width >= 44 && m.b.height >= 44, `${w}px: alvo ${m.b.width}x${m.b.height}`);
+    assert.ok(m.b.right <= m.t.left + 0.5 && m.l.right <= m.b.left + 0.5, `${w}px: elementos do cabeçalho se sobrepõem`); assert.ok(m.t.right <= m.vw + 0.5, `${w}px: sai da tela`);
+    await page.click('#langBtn');
+    const mm = await page.evaluate(() => { const r = document.getElementById('langMenu').getBoundingClientRect(); return { l: r.left, r: r.right, t: r.top, b: r.bottom, vw: innerWidth, items: [...document.querySelectorAll('#langMenu .lang-opt')].map(o => o.getBoundingClientRect().height) }; });
+    assert.ok(mm.l >= 0 && mm.r <= mm.vw, `${w}px: menu de idiomas fora da tela (${mm.l}–${mm.r})`); assert.ok(mm.items.every(h => h >= 44), `${w}px: itens < 44px`);
+    await page.click('#navToggle');                                            // abrir o menu principal fecha o de idiomas
+    assert.equal(await page.$eval('#langMenu', e => e.hidden), true); assert.equal(await page.$eval('#navToggle', e => e.getAttribute('aria-expanded')), 'true');
+    await page.click('#langBtn');                                              // e o contrário
+    assert.equal(await page.$eval('#navToggle', e => e.getAttribute('aria-expanded')), 'false'); assert.equal(await page.$eval('#langMenu', e => e.hidden), false);
+    await s.close();
+  }
+});
+
+test('seletor no desktop: o cabeçalho não estoura entre 1101 e 1440 px (nem em espanhol, o idioma mais longo)', async () => {
+  for (const w of [1101, 1180, 1280, 1366, 1440, 1920]) {
+    const s = await openFresh({ geoCountry: 'ES', width: w, height: 800 }); const { page } = s; await settled(page, 'es-ES');
+    const m = await page.evaluate(() => { const R = e => e.getBoundingClientRect(); const wrap = document.querySelector('.nav .wrap'); const kids = [...document.querySelectorAll('.nav-menu > a, #lang, .logo')].map(R); const cs = getComputedStyle(wrap); const inner = R(wrap).right - parseFloat(cs.paddingRight); return { inner, maxRight: Math.max(...kids.map(k => k.right)), sorted: kids.map(k => [k.left, k.right]).sort((a, b) => a[0] - b[0]), wraps: [...document.querySelectorAll('.nav-menu > a')].some(a => R(a).height > 44), vis: getComputedStyle(document.getElementById('navToggle')).display }; });
+    assert.ok(m.maxRight <= m.inner + 1, `${w}px: cabeçalho passa ${Math.round(m.maxRight - m.inner)}px do container`);
+    for (let i = 1; i < m.sorted.length; i++) assert.ok(m.sorted[i][0] >= m.sorted[i - 1][1] - 0.5, `${w}px: itens do cabeçalho se sobrepõem`);
+    assert.equal(m.wraps, false, `${w}px: item do menu quebrou em duas linhas`);
+    await s.close();
+  }
+});
+
+test('o layout e a identidade visual não mudam: o seletor não altera o espaço do restante do site (CLS ≤ 0,1 com troca de idioma no 1º acesso)', async () => {
+  const s = await openFresh({ geoCountry: 'US', reduce: false });
+  await s.page.evaluateOnNewDocument(() => { window.__cls = 0; new PerformanceObserver(l => { for (const e of l.getEntries()) if (!e.hadRecentInput) window.__cls += e.value; }).observe({ type: 'layout-shift', buffered: true }); });
+  await s.page.reload({ waitUntil: 'load' }); await settled(s.page, 'en-US'); await new Promise(r => setTimeout(r, 1500));
+  const cls = await s.page.evaluate(() => window.__cls); console.log(`  CLS na troca automática PT→EN no 1º acesso: ${cls.toFixed(3)}`);
+  assert.ok(cls < 0.1, 'CLS ' + cls); await s.close();
 });
